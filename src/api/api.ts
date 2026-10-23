@@ -19,6 +19,8 @@ import type {
   Contact,
   Database,
   Invoice,
+  KycRecord,
+  KycStatus,
   Occupancy,
   ProductOrder,
   Property,
@@ -592,7 +594,7 @@ export interface UnitView extends Unit {
   connectivity: ConnectivityStatus;
   building: string;
   floor: number;
-  occupant?: { name: string; email: string; phone: string; role: string; since: string; customerId: string };
+  occupant?: { name: string; email: string; phone: string; role: string; since: string; customerId: string; kyc: KycRecord; customerSince: string };
   services: (ServiceInstance & { offeringName: string; billedTo: string })[];
   openTickets: number;
 }
@@ -606,7 +608,7 @@ function unitView(db: Database, scope: ResolvedScope, u: Unit): UnitView {
     connectivity: connectivityOf(u, allSrv),
     building: db.buildings.find((b) => b.id === u.buildingId)!.name,
     floor: db.floors.find((f) => f.id === u.floorId)!.number,
-    occupant: cust && occ ? { name: cust.name, email: cust.email, phone: cust.phone, role: occ.role, since: occ.validFrom, customerId: cust.id } : undefined,
+    occupant: cust && occ ? { name: cust.name, email: cust.email, phone: cust.phone, role: occ.role, since: occ.validFrom, customerId: cust.id, kyc: cust.kyc, customerSince: cust.createdAt } : undefined,
     services: allSrv.map((s) => {
       const b = db.billingAccounts.find((x) => x.id === s.billingAccountId)!;
       return { ...s, offeringName: offeringName(db, s.offeringId), billedTo: scope.billing.has(b.id) ? `${b.name} (${b.id})` : b.type === 'Resident' ? 'Resident (individual billing)' : 'Restricted' };
@@ -673,23 +675,295 @@ export async function listUnits(propertyId?: string): Promise<(UnitView & { prop
     .map((u) => ({ ...unitView(db, scope, u), propertyName: db.properties.find((p) => p.id === u.propertyId)!.name }));
 }
 
-export async function assignOccupant(unitId: string, o: { name: string; email: string; phone: string; role: 'Owner' | 'Tenant' | 'Authorised Contact'; from: string }) {
+/* ======================================================================
+ * Occupant onboarding: customer identification, consent and eKYC.
+ * Party lookup maps to TMF632 (Party) / TMF629 (Customer); identity
+ * verification would call the operator's eKYC gateway (UIDAI Aadhaar OTP,
+ * DigiLocker, or document review). Everything here is simulated.
+ * ==================================================================== */
+
+const digits = (p: string) => p.replace(/\D/g, '').slice(-10);
+const maskName = (n: string) => n.split(/\s+/).map((w) => w[0] + '•'.repeat(Math.max(2, w.length - 1))).join(' ');
+const maskPhone = (p: string) => (digits(p).length === 10 ? `+91 ••••• •${digits(p).slice(-4)}` : '—');
+const maskEmail = (e: string) => (e.includes('@') ? `${e[0]}•••@${e.split('@')[1]}` : '—');
+
+export interface CustomerMatch {
+  customerId: string;
+  maskedName: string;
+  maskedPhone: string;
+  maskedEmail: string;
+  matchedOn: 'mobile' | 'email' | 'customer ID';
+  kycStatus: KycStatus;
+  kycSource?: string;
+  customerSince: string;
+  /** Categories only — service details stay hidden until the customer consents. */
+  serviceCategories: string[];
+  occupiesInYourScope: string[];
+  occupiesElsewhere: number;
+}
+
+function requireUnitManager(db: Database, user: User, scope: ResolvedScope, unitId?: string) {
+  requirePerm(db, user, 'unit.manage');
+  if (unitId) {
+    const u = db.units.find((x) => x.id === unitId);
+    if (!u || !scope.properties.has(u.propertyId)) throw new AuthError('Unit outside your scope.');
+  }
+}
+
+/** Find an existing customer by mobile, email or customer ID. Returns masked data only. */
+export async function lookupCustomer(query: string): Promise<CustomerMatch[]> {
   await latency();
   const { db, user, scope } = ctx();
-  requirePerm(db, user, 'unit.manage');
-  if (!scope.units.has(unitId) || !scope.properties.has(db.units.find((u) => u.id === unitId)!.propertyId)) throw new AuthError('Unit outside your scope.');
-  if (!o.name.trim()) throw new ValidationError('Occupant name is required.');
-  if (o.email && !/^\S+@\S+\.\S+$/.test(o.email)) throw new ValidationError('Enter a valid email address.');
-  mutate((d) => {
-    // End-date the current occupancy; billing relationships deliberately stay as they are (spec §7.3).
-    d.occupancies.filter((x) => x.unitId === unitId && !x.validTo).forEach((x) => (x.validTo = addDays(o.from, -1)));
-    const cid = `CUS-${++d.seq}`;
-    d.customers.push({ id: cid, tenantId: 'TEN-RES', name: o.name.trim(), email: o.email, phone: o.phone, createdAt: TODAY });
-    d.occupancies.push({ id: `OCC-${++d.seq}`, unitId, customerId: cid, role: o.role, validFrom: o.from });
-    const u = d.units.find((x) => x.id === unitId)!;
-    u.occupancy = 'Occupied';
-    audit(d, d.properties.find((p) => p.id === u.propertyId)!.tenantId, user.name, 'Occupant assigned', 'unit', unitId, `${o.name} (${o.role}) from ${o.from}`);
+  requireUnitManager(db, user, scope);
+  const q = query.trim();
+  if (q.length < 4) throw new ValidationError('Enter a 10-digit mobile number, email address or customer ID.');
+  const isId = /^cus-/i.test(q);
+  const isEmail = q.includes('@');
+  const ph = digits(q);
+  if (!isId && !isEmail && ph.length !== 10) throw new ValidationError('Mobile number must have 10 digits.');
+  const matches = db.customers.filter((c) => (isId ? c.id.toLowerCase() === q.toLowerCase() : isEmail ? c.email.toLowerCase() === q.toLowerCase() : digits(c.phone) === ph));
+  return matches.map((c) => {
+    const occ = db.occupancies.filter((o) => o.customerId === c.id && !o.validTo);
+    const inScope = occ.filter((o) => scope.units.has(o.unitId)).map((o) => db.units.find((u) => u.id === o.unitId)!.number);
+    return {
+      customerId: c.id,
+      maskedName: maskName(c.name),
+      maskedPhone: maskPhone(c.phone),
+      maskedEmail: maskEmail(c.email),
+      matchedOn: isId ? 'customer ID' : isEmail ? 'email' : 'mobile',
+      kycStatus: c.kyc.status,
+      kycSource: c.kyc.source,
+      customerSince: c.createdAt,
+      serviceCategories: [...new Set(db.services.filter((sv) => sv.owner.kind === 'customer' && sv.owner.id === c.id && sv.status !== 'Terminated').map((sv) => db.offerings.find((o) => o.id === sv.offeringId)!.category))],
+      occupiesInYourScope: inScope,
+      occupiesElsewhere: occ.length - inScope.length,
+    };
   });
+}
+
+// Short-lived, in-memory verification state (never persisted).
+const otpStore = new Map<string, { kind: 'consent' | 'aadhaar'; customerId?: string; aadhaar?: string; code: string; expires: number; attempts: number }>();
+const consentTokens = new Map<string, { customerId: string; at: string; by: string }>();
+const kycTokens = new Map<string, KycRecord>();
+const token = (p: string) => `${p}-${Math.random().toString(36).slice(2, 10).toUpperCase()}`;
+const DEMO_CONSENT_OTP = '246810';
+const DEMO_AADHAAR_OTP = '135790';
+
+export async function sendConsentOtp(customerId: string) {
+  await latency();
+  const { db, user, scope } = ctx();
+  requireUnitManager(db, user, scope);
+  const c = db.customers.find((x) => x.id === customerId);
+  if (!c) throw new ValidationError('Customer not found.');
+  const ref = token('OTP');
+  otpStore.set(ref, { kind: 'consent', customerId, code: DEMO_CONSENT_OTP, expires: Date.now() + 5 * 60_000, attempts: 0 });
+  return { otpRef: ref, sentTo: maskPhone(c.phone), demoOtp: DEMO_CONSENT_OTP, validMinutes: 5 };
+}
+
+function checkOtp(ref: string, code: string, kind: 'consent' | 'aadhaar') {
+  const o = otpStore.get(ref);
+  if (!o || o.kind !== kind) throw new ValidationError('OTP session not found. Request a new OTP.');
+  if (Date.now() > o.expires) {
+    otpStore.delete(ref);
+    throw new ValidationError('OTP expired. Request a new OTP.');
+  }
+  if (o.attempts >= 3) {
+    otpStore.delete(ref);
+    throw new ValidationError('Too many incorrect attempts. Request a new OTP.');
+  }
+  if (code.trim() !== o.code) {
+    o.attempts++;
+    throw new ValidationError(`Incorrect OTP. ${3 - o.attempts} attempt(s) left.`);
+  }
+  otpStore.delete(ref);
+  return o;
+}
+
+/** Customer approves, via OTP on their registered mobile, linking their profile to the unit. */
+export async function verifyConsentOtp(otpRef: string, code: string) {
+  await latency();
+  const { db, user } = ctx();
+  const o = checkOtp(otpRef, code, 'consent');
+  const c = db.customers.find((x) => x.id === o.customerId)!;
+  const consentToken = token('CNS');
+  consentTokens.set(consentToken, { customerId: c.id, at: nowIso(), by: user.name });
+  return { consentToken, profile: { name: c.name, phone: maskPhone(c.phone), email: c.email, kyc: c.kyc, customerSince: c.createdAt } };
+}
+
+export async function requestAadhaarOtp(aadhaar: string, purposeConsent: boolean) {
+  await latency();
+  const { db, user, scope } = ctx();
+  if (user.roleId !== 'RESIDENT') requireUnitManager(db, user, scope);
+  if (!purposeConsent) throw new ValidationError('The customer must consent to Aadhaar-based eKYC before an OTP is sent.');
+  const a = aadhaar.replace(/\s/g, '');
+  if (!/^[2-9]\d{11}$/.test(a)) throw new ValidationError('Aadhaar number must be 12 digits and cannot start with 0 or 1.');
+  const txnId = token('UIDAI');
+  otpStore.set(txnId, { kind: 'aadhaar', aadhaar: a, code: DEMO_AADHAAR_OTP, expires: Date.now() + 10 * 60_000, attempts: 0 });
+  return { txnId, sentTo: `Aadhaar-linked mobile ••••••${a.slice(-2)}`, demoOtp: DEMO_AADHAAR_OTP };
+}
+
+export interface KycResult {
+  kycToken: string;
+  record: KycRecord;
+  message: string;
+}
+
+/** Simulated UIDAI response: numbers ending 0000 fail authentication; ending 9999 fail the name match. */
+export async function verifyAadhaarOtp(txnId: string, code: string, declaredName: string): Promise<KycResult> {
+  await new Promise((r) => setTimeout(r, 900));
+  const o = checkOtp(txnId, code, 'aadhaar');
+  const a = o.aadhaar!;
+  const maskedRef = `XXXX-XXXX-${a.slice(-4)}`;
+  let record: KycRecord;
+  let message: string;
+  if (a.endsWith('0000')) {
+    record = { status: 'Failed', method: 'Aadhaar OTP eKYC', idType: 'Aadhaar', maskedRef, note: 'UIDAI authentication failed' };
+    message = 'UIDAI could not authenticate this Aadhaar. Try DigiLocker or a document upload.';
+  } else if (a.endsWith('9999')) {
+    record = { status: 'Failed', method: 'Aadhaar OTP eKYC', idType: 'Aadhaar', maskedRef, note: `Name mismatch with declared name “${declaredName}”` };
+    message = 'The name on Aadhaar does not match the declared name. Correct the name or use another method.';
+  } else {
+    record = { status: 'Verified', method: 'Aadhaar OTP eKYC', idType: 'Aadhaar', maskedRef, verifiedAt: TODAY, source: 'MDU occupant onboarding' };
+    message = `Identity verified with UIDAI. Name matched “${declaredName}”. Only the masked reference is stored.`;
+  }
+  const kycToken = token('KYC');
+  kycTokens.set(kycToken, record);
+  return { kycToken, record, message };
+}
+
+export async function fetchDigiLocker(declaredName: string, purposeConsent: boolean): Promise<KycResult> {
+  await new Promise((r) => setTimeout(r, 1200));
+  if (!purposeConsent) throw new ValidationError('The customer must consent to sharing documents from DigiLocker.');
+  if (declaredName.trim().length < 3) throw new ValidationError('Enter the customer’s full name first.');
+  const record: KycRecord = { status: 'Verified', method: 'DigiLocker', idType: 'Aadhaar', maskedRef: `XXXX-XXXX-${String(1000 + Math.floor(Math.random() * 8999))}`, verifiedAt: TODAY, source: 'MDU occupant onboarding' };
+  const kycToken = token('KYC');
+  kycTokens.set(kycToken, record);
+  return { kycToken, record, message: 'Verified Aadhaar XML fetched from DigiLocker with the customer’s consent.' };
+}
+
+const DOC_RULES: Record<string, RegExp> = {
+  PAN: /^[A-Z]{5}\d{4}[A-Z]$/,
+  Passport: /^[A-Z]\d{7}$/,
+  'Voter ID': /^[A-Z]{3}\d{7}$/,
+  'Driving Licence': /^[A-Z]{2}\d{2}[ -]?\d{4}\d{7}$/,
+};
+
+export async function submitKycDocument(idType: 'PAN' | 'Passport' | 'Voter ID' | 'Driving Licence', idNumber: string, fileName: string, purposeConsent: boolean): Promise<KycResult> {
+  await latency();
+  if (!purposeConsent) throw new ValidationError('The customer must consent to document verification.');
+  const n = idNumber.trim().toUpperCase();
+  if (!DOC_RULES[idType].test(n)) throw new ValidationError(`${idType} number format is not valid.`);
+  if (!fileName) throw new ValidationError('Attach a scan or photo of the document.');
+  const record: KycRecord = { status: 'Pending Review', method: 'Document upload (manual review)', idType, maskedRef: `${'X'.repeat(Math.max(0, n.length - 4))}${n.slice(-4)}`, source: 'MDU occupant onboarding', note: `Document ${fileName} awaiting back-office review` };
+  const kycToken = token('KYC');
+  kycTokens.set(kycToken, record);
+  return { kycToken, record, message: 'Document submitted. The occupant can be assigned now; services billed to the resident unlock once the operator approves the document.' };
+}
+
+export type OnboardOccupantInput = {
+  role: 'Owner' | 'Tenant' | 'Authorised Contact';
+  from: string;
+  invitePortal: boolean;
+} & ({ mode: 'existing'; customerId: string; consentToken: string } | { mode: 'new'; name: string; email: string; phone: string; dob: string; kycToken: string; dataConsent: boolean });
+
+function ageOn(dob: string, on: string) {
+  const a = new Date(dob + 'T00:00:00Z');
+  const b = new Date(on + 'T00:00:00Z');
+  let y = b.getUTCFullYear() - a.getUTCFullYear();
+  if (b.getUTCMonth() < a.getUTCMonth() || (b.getUTCMonth() === a.getUTCMonth() && b.getUTCDate() < a.getUTCDate())) y--;
+  return y;
+}
+
+export async function onboardOccupant(unitId: string, input: OnboardOccupantInput) {
+  await latency();
+  const { db, user, scope } = ctx();
+  requireUnitManager(db, user, scope, unitId);
+  if (!input.from) throw new ValidationError('Choose the occupancy start date.');
+  let customerId: string;
+  let kyc: KycRecord;
+  if (input.mode === 'existing') {
+    const ct = consentTokens.get(input.consentToken);
+    if (!ct || ct.customerId !== input.customerId) throw new ValidationError('Customer consent has not been verified for this profile.');
+    customerId = input.customerId;
+    kyc = db.customers.find((c) => c.id === customerId)!.kyc;
+  } else {
+    if (!input.dataConsent) throw new ValidationError('Record the customer’s consent to the privacy notice.');
+    if (input.name.trim().length < 3) throw new ValidationError('Enter the customer’s full name.');
+    if (digits(input.phone).length !== 10) throw new ValidationError('Enter a valid 10-digit mobile number.');
+    if (!/^\S+@\S+\.\S+$/.test(input.email)) throw new ValidationError('Enter a valid email address.');
+    if (!input.dob || ageOn(input.dob, TODAY) < 18) throw new ValidationError('The subscriber must be 18 or older.');
+    const dup = db.customers.find((c) => digits(c.phone) === digits(input.phone) || c.email.toLowerCase() === input.email.toLowerCase());
+    if (dup) throw new ValidationError(`A customer already exists with this ${digits(dup.phone) === digits(input.phone) ? 'mobile number' : 'email'}. Use “Find existing customer” and verify consent instead.`);
+    const rec = kycTokens.get(input.kycToken);
+    if (!rec) throw new ValidationError('Complete identity verification (eKYC) first.');
+    if (rec.status === 'Failed') throw new ValidationError('eKYC failed. Retry with another method before assigning.');
+    kyc = rec;
+    customerId = '';
+  }
+  const result = mutate((d) => {
+    const unit = d.units.find((x) => x.id === unitId)!;
+    const prop = d.properties.find((p) => p.id === unit.propertyId)!;
+    d.occupancies.filter((x) => x.unitId === unitId && !x.validTo).forEach((x) => (x.validTo = addDays(input.from, -1)));
+    const consent = { purpose: `Link occupancy of ${prop.name} ${unit.number} to customer profile`, channel: input.mode === 'existing' ? ('OTP' as const) : ('Portal checkbox' as const), at: TODAY, capturedBy: user.name };
+    if (input.mode === 'existing') {
+      d.customers.find((c) => c.id === customerId)!.consents.push(consent);
+      consentTokens.delete(input.consentToken);
+    } else {
+      customerId = `CUS-${++d.seq}`;
+      d.customers.push({ id: customerId, tenantId: 'TEN-RES', name: input.name.trim(), email: input.email.trim(), phone: input.phone.trim(), dob: input.dob, createdAt: TODAY, kyc, consents: [{ purpose: 'Identity verification for telecom services (privacy notice accepted)', channel: kyc.method === 'Aadhaar OTP eKYC' ? 'OTP' : 'Portal checkbox', at: TODAY, capturedBy: user.name }, consent] });
+      kycTokens.delete(input.kycToken);
+    }
+    const cust = d.customers.find((c) => c.id === customerId)!;
+    d.occupancies.push({ id: `OCC-${++d.seq}`, unitId, customerId, role: input.role, validFrom: input.from });
+    unit.occupancy = 'Occupied';
+    let approvalId: string | undefined;
+    if (cust.kyc.status === 'Pending Review' && !d.approvals.some((x) => x.status === 'Pending' && x.type === 'KYC Document Review' && x.target.id === customerId)) {
+      approvalId = `APR-${++d.seq}`;
+      d.approvals.unshift({ id: approvalId, tenantId: prop.tenantId, type: 'KYC Document Review', summary: `Verify ${cust.kyc.idType} for ${cust.name} (${prop.name} ${unit.number})`, target: { kind: 'customer', id: customerId }, payload: { customerId, unitId, idType: cust.kyc.idType, maskedRef: cust.kyc.maskedRef }, requestedBy: user.id, requestedAt: nowIso(), status: 'Pending' });
+    }
+    let invited = false;
+    if (input.invitePortal && !d.users.some((u) => u.customerId === customerId)) {
+      d.users.push({ id: `U-${++d.seq}`, tenantId: 'TEN-RES', name: cust.name, email: cust.email, phone: cust.phone, title: `Resident, ${prop.name} ${unit.number}`, roleId: 'RESIDENT', scopes: [{ kind: 'unit', ref: unitId, inherit: false }], customerId, status: 'Invited' });
+      invited = true;
+    } else if (input.invitePortal) {
+      const u = d.users.find((x) => x.customerId === customerId)!;
+      if (!u.scopes.some((g) => g.ref === unitId)) u.scopes.push({ kind: 'unit', ref: unitId, inherit: false });
+      invited = true;
+    }
+    audit(d, prop.tenantId, user.name, input.mode === 'existing' ? 'Existing customer linked as occupant' : 'New customer onboarded as occupant', 'unit', unitId, `${cust.name} (${input.role}) from ${input.from} · KYC ${cust.kyc.status}${cust.kyc.method ? ` via ${cust.kyc.method}` : ''} ${cust.kyc.maskedRef ?? ''}`);
+    return { customerId, kycStatus: cust.kyc.status, invited, approvalId, name: cust.name };
+  });
+  return result;
+}
+
+/** PM-assisted eKYC for an occupant who has none (e.g. legacy or CSV-imported occupants). */
+export async function completeOccupantKyc(unitId: string, kycToken: string) {
+  await latency();
+  const { db, user, scope } = ctx();
+  requireUnitManager(db, user, scope, unitId);
+  const occ = db.occupancies.find((o) => o.unitId === unitId && !o.validTo);
+  if (!occ) throw new ValidationError('This unit has no occupant.');
+  const rec = kycTokens.get(kycToken);
+  if (!rec) throw new ValidationError('Run identity verification first.');
+  if (rec.status === 'Failed') throw new ValidationError('eKYC failed; nothing was saved.');
+  return mutate((d) => {
+    const c = d.customers.find((x) => x.id === occ.customerId)!;
+    const unit = d.units.find((u) => u.id === unitId)!;
+    const prop = d.properties.find((p) => p.id === unit.propertyId)!;
+    c.kyc = rec;
+    c.consents.push({ purpose: 'Identity verification for telecom services', channel: rec.method === 'Aadhaar OTP eKYC' ? 'OTP' : 'Portal checkbox', at: TODAY, capturedBy: user.name });
+    kycTokens.delete(kycToken);
+    if (rec.status === 'Pending Review') d.approvals.unshift({ id: `APR-${++d.seq}`, tenantId: prop.tenantId, type: 'KYC Document Review', summary: `Verify ${rec.idType} for ${c.name} (${prop.name} ${unit.number})`, target: { kind: 'customer', id: c.id }, payload: { customerId: c.id, unitId, idType: rec.idType, maskedRef: rec.maskedRef }, requestedBy: user.id, requestedAt: nowIso(), status: 'Pending' });
+    audit(d, prop.tenantId, user.name, 'Occupant KYC updated', 'unit', unitId, `${c.name}: ${rec.status} via ${rec.method} ${rec.maskedRef ?? ''}`);
+    return rec.status;
+  });
+}
+
+function residentKycProblem(db: Database, customerId: string | undefined) {
+  if (!customerId) return 'Unit has no occupant.';
+  const c = db.customers.find((x) => x.id === customerId);
+  if (!c) return 'Occupant not found.';
+  return c.kyc.status === 'Verified' ? null : `Resident KYC is ${c.kyc.status}. Complete eKYC before ordering services billed to the resident.`;
 }
 
 export async function setOccupancy(unitId: string, occupancy: Occupancy) {
@@ -838,7 +1112,7 @@ export async function commitImport(rows: ImportRow[]): Promise<{ created: number
       if (r.occupantName) {
         const cid = `CUS-${++d.seq}`;
         const email = r.contact?.includes('@') ? r.contact : '';
-        d.customers.push({ id: cid, tenantId: 'TEN-RES', name: r.occupantName, email, phone: email ? '' : r.contact ?? '', createdAt: TODAY });
+        d.customers.push({ id: cid, tenantId: 'TEN-RES', name: r.occupantName, email, phone: email ? '' : r.contact ?? '', createdAt: TODAY, kyc: { status: 'Not Started', note: 'Imported from CSV — eKYC required before resident-billed services' }, consents: [] });
         d.occupancies.push({ id: `OCC-${++d.seq}`, unitId: uid, customerId: cid, role: 'Authorised Contact', validFrom: TODAY });
       }
     }
@@ -917,7 +1191,7 @@ export async function checkAvailability(target: { kind: 'unit'; unitId: string }
       } else {
         result = 'Service Available';
         reason = `${p.technology} ready at ${u.number}; ${p.capacityPorts - usedPorts} access ports free.`;
-        eligible = db.offerings.filter((o) => o.segment === 'Residential' && (!o.techRequired || o.techRequired.includes(p.technology))).map((o) => o.id);
+        eligible = db.offerings.filter((o) => o.segment === 'Residential' && o.category === 'FTTH Broadband' && (!o.techRequired || o.techRequired.includes(p.technology))).map((o) => o.id);
       }
     }
   } else {
@@ -978,6 +1252,11 @@ export async function submitNewConnection(input: NewConnectionInput) {
     propertyId = unit.propertyId;
     tenantId = db.properties.find((p) => p.id === propertyId)!.tenantId;
     const occ = db.occupancies.find((o) => o.unitId === unit!.id && !o.validTo);
+    const residentBilled = input.billing.mode === 'new-resident' || db.billingAccounts.find((b) => b.id === (input.billing as { billingId?: string }).billingId)?.payerRef.kind === 'customer';
+    if (residentBilled) {
+      const problem = residentKycProblem(db, occ?.customerId);
+      if (problem) throw new ValidationError(problem);
+    }
     if (input.billing.mode === 'new-resident') {
       if (!occ) throw new ValidationError('Resident billing needs an occupant on the unit. Assign an occupant or bill the property.');
       ownerKind = 'customer';
@@ -1095,6 +1374,7 @@ export async function previewBulk(input: BulkInput): Promise<BulkPreview> {
     else if (!o) reason = 'No plan selected';
     else if (o.techRequired && !o.techRequired.includes(p.technology)) reason = `${o.name} not supported on ${p.technology}`;
     else if (input.billing === 'resident' && !occ) reason = 'Resident billing selected but unit has no occupant';
+    else if (input.billing === 'resident' && residentKycProblem(db, occ!.customerId)) reason = `Resident KYC ${db.customers.find((c) => c.id === occ!.customerId)?.kyc.status ?? 'missing'} — eKYC required`;
     else if (free <= 0) reason = 'No free access port – capacity expansion needed';
     if (reason) out.ineligible.push({ unitId: id, number: u.number, reason });
     else {
@@ -1521,6 +1801,7 @@ function approvalVisible(db: Database, scope: ResolvedScope, a: ApprovalRequest)
   if (a.target.kind === 'account') return scope.accounts.has(a.target.id);
   if (a.target.kind === 'billing') return scope.billing.has(a.target.id);
   if (a.target.kind === 'property') return scope.properties.has(a.target.id);
+  if (a.target.kind === 'customer') return scope.customerId === a.target.id || db.occupancies.some((o) => o.customerId === a.target.id && !o.validTo && scope.properties.has(db.units.find((u) => u.id === o.unitId)?.propertyId ?? ''));
   const o = db.orders.find((x) => x.id === a.target.id);
   const r = o && db.requests.find((x) => x.id === o.requestId);
   return !!r?.propertyId && scope.properties.has(r.propertyId);
@@ -1535,6 +1816,7 @@ const DECIDERS: Record<ApprovalType, RoleId[]> = {
   'Bulk Service Activation': ['OPERATOR'],
   'Reassign Property Administrator': ['OPERATOR'],
   'Register Property': ['OPERATOR'],
+  'KYC Document Review': ['OPERATOR'],
 };
 
 export async function listApprovals() {
@@ -1607,6 +1889,11 @@ export async function decideApproval(id: string, approve: boolean, note: string)
         });
         req.status = approve ? 'Approved' : 'Rejected';
         req.timeline.push({ at: nowIso(), status: req.status, by: user.name, note });
+        break;
+      }
+      case 'KYC Document Review': {
+        const c = d.customers.find((x) => x.id === p.customerId);
+        if (c) c.kyc = approve ? { ...c.kyc, status: 'Verified', verifiedAt: TODAY, note: `Document verified by ${user.name}` } : { ...c.kyc, status: 'Failed', note: `Document rejected: ${note}` };
         break;
       }
       case 'Reassign Property Administrator': {

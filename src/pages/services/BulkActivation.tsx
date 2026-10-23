@@ -33,7 +33,7 @@ export function BulkActivation() {
 
   if (props.error) return <ErrorState error={props.error} />;
   if (!props.data) return <Loading />;
-  const resi = offerings().filter((o) => o.segment === 'Residential' && (!prop || !o.techRequired || o.techRequired.includes(prop.technology)));
+  const resi = offerings().filter((o) => o.segment === 'Residential' && o.category === 'FTTH Broadband' && (!prop || !o.techRequired || o.techRequired.includes(prop.technology)));
   const input: BulkInput = { propertyId: pid, unitIds: sel, plan: planMode === 'common' ? { mode: 'common', offeringId: common } : { mode: 'per-unit', map: Object.fromEntries(sel.map((u) => [u, perUnit[u] ?? common])) }, billing: billingResp, appointmentFrom: from };
   const candidates = (units.data ?? []).filter((u) => (tower === 'All' || u.building === tower) && (u.connectivity === 'Ready for Service' || u.connectivity === 'Network Not Ready'));
   const towers = [...new Set((units.data ?? []).map((u) => u.building))];

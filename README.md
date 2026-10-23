@@ -9,7 +9,7 @@
 1. [Executive summary](#1-executive-summary)
 2. [Quick start](#2-quick-start)
 3. [Demo personas](#3-demo-personas)
-4. [Guided demo script (journeys A–I)](#4-guided-demo-script-journeys-ai)
+4. [Guided demo script (journeys A–L)](#4-guided-demo-script-journeys-al)
 5. [Screen inventory](#5-screen-inventory)
 6. [Screenshots](#6-screenshots)
 7. [Design rules implemented](#7-design-rules-implemented)
@@ -28,7 +28,7 @@ Operators selling enterprise connectivity and FTTH into residential communities 
 | Dimension | What the user can do |
 |---|---|
 | **Business account management** | Navigate and restructure corporate hierarchies (root → subsidiary → department / branch → service account), create child accounts, delegate administration, view services and consolidated billing |
-| **MDU management** | Register properties, generate towers / floors / units, manage occupancy, check unit readiness, bulk-onboard units from CSV, and activate broadband for many units in one controlled order |
+| **MDU management** | Register properties, generate towers / floors / units, onboard occupants (existing customers by consent, new customers with eKYC), check unit readiness, bulk-onboard units from CSV, and activate broadband for many units in one controlled order |
 | **Parent–child accounts** | Keep organisational ownership, billing responsibility and physical premises as **separate, linked structures**, with inheritance, delegated scope and approval-controlled change |
 
 Everything is clickable: there are no placeholder pages or dead buttons. Every journey in the specification runs end to end against a mock, TM Forum–aligned API layer with role- and scope-based access control. All data is synthetic, and every provisioning, payment and approval action is simulated and labelled as such.
@@ -67,17 +67,17 @@ npm run dev        # http://localhost:5173
 | **Vikram Shetty** | Business Account Administrator | 6D India subtree | Branch services, delegated admin |
 | **Karthik Reddy** | Business Account Administrator (delegated) | Bangalore Office only, no inheritance | Scope isolation (Journey H) |
 | **Rahul Iyer** | Billing Administrator | 6D Global Group Billing subtree | Billing hierarchy, invoices, cost allocation |
-| **Priya Menon** | MDU Property Manager | Green Valley Residences, Sunrise Heights | MDU journeys C–F |
+| **Priya Menon** | MDU Property Manager | Green Valley Residences, Sunrise Heights | MDU journeys C–F and occupant onboarding J–L |
 | **Farhan Qureshi** | MDU Property Manager | Sunrise Heights only | Narrow property delegation |
 | **Deepa Joshi** | MDU Property Manager (other tenant) | Palm Meadows Towers | Cross-tenant isolation |
 | **Sneha Kulkarni** | Resident / Unit Subscriber | Green Valley unit A-104 | Resident isolation (Journey I) |
 | **Arjun Nair** | Operator Administrator (demo) | All tenants | Bulk-activation approval, simulated fulfilment |
 
-**Seed data:** 12 business accounts across 3 organisations · 3 properties (Green Valley Residences, Bengaluru, 3 towers / 180 units; Sunrise Heights, Hyderabad, 2 towers / 120 units; Palm Meadows Towers, Pune, 4 towers / 240 units) · 269 services · individual, master / bulk-contract and hybrid billing · 6 months of invoices (240) and payments · 25 tickets and service requests, appointments and pending approvals.
+**Seed data:** 12 business accounts across 3 organisations · 3 properties (Green Valley Residences, Bengaluru, 3 towers / 180 units; Sunrise Heights, Hyderabad, 2 towers / 120 units; Palm Meadows Towers, Pune, 4 towers / 240 units) · 273 services (including Mobile) · 443 customers. Of 435 current occupants, 390 have KYC Verified, 15 Pending Review and 30 Not Started (legacy occupants) · 3 existing Mobile-only customers not yet occupying a unit (Rohit Verma 98450 77001, Ayesha Siddiqui 99001 22334, Vivek Nair 97400 55667) · individual, master / bulk-contract and hybrid billing · 6 months of invoices (246) and payments · 25 tickets and service requests, appointments and pending approvals (including one KYC document review).
 
 ---
 
-## 4. Guided demo script (journeys A–I)
+## 4. Guided demo script (journeys A–L)
 
 | # | Journey | Persona | Steps | What to point out |
 |---|---|---|---|---|
@@ -89,9 +89,12 @@ npm run dev        # http://localhost:5173
 | **F** | Bulk activation | Priya → Arjun | Services → Bulk Activation → Green Valley → *Select all ready* → plan → billing → *Run availability checks* → Submit; switch to **Arjun** → Admin → Approvals → Approve; open the order → *Simulate next provisioning step* ×2 | Per-unit rejection at validation, operator approval, per-unit completed / failed results |
 | **G** | Consolidated billing drill-down | Rahul | Bills & Payments → Billing Hierarchy → *6D Global Group Billing* → *India Corporate* → *Bangalore Office Billing*; toggle consolidated vs own invoices | Rolled-up balances (SGD converted to INR at the demo rate) |
 | **H** | Delegated admin isolation | Karthik | Accounts (only Bangalore Office); open `#/accounts/ACC-1120` | Refused by the **data layer**, not just hidden in the menu |
-| **I** | Resident isolation | Sneha | Dashboard → *My Home* (A-104, plan, bills, tickets); open `#/mdu/PRP-GV` | Sees only their own unit, subscription, bills and tickets |
+| **I** | Resident isolation | Sneha | Dashboard → *My Home* (A-104, plan, bills, tickets); open `#/mdu/PRP-GV` | Sees only their own unit, services (Mobile + Broadband), bills and tickets. KYC shown as Verified via the earlier mobile activation |
+| **J** | **New customer** (not registered with us) as occupant | Priya | Unit grid → A-302 → *Assign occupant* → search `90000 12345` → *not yet registered* → **Register new customer** (name, mobile, email, DOB) → duplicate check → privacy notice + consent → **Aadhaar OTP eKYC** (any 12 digits not starting 0/1; OTP `135790`) → relationship and start date, invite to self-care → Confirm | Lookup-first prevents duplicates. Age 18+ check. Only `XXXX-XXXX-1234` is stored. Alternatives: **DigiLocker** (instant) or **document upload** (PAN / Passport / Voter ID / DL), which goes to operator review |
+| **K** | **Existing Mobile customer** as occupant | Priya | Occupancy Management → A-103 → *Assign occupant* → search `98450 77001` → masked match (Mobile, KYC Verified) → **Link this customer** → **consent OTP** to their registered mobile (`246810`) → profile unlocks → Confirm | Details stay masked until the customer consents. **KYC reused** from the mobile activation. One customer account across Mobile + Broadband (convergent). Typing the same mobile into *Register new customer* is caught: *Switch to existing customer* |
+| **L** | Legacy occupant without KYC | Priya → Arjun | A-205 (Harish Gowda, *KYC Not Started*): resident-billed bulk activation is rejected (*eKYC required*) → unit drawer → **Verify occupant KYC** → document upload (PAN `ABCDE1234F` + file) → switch to **Arjun** → Approvals → approve *KYC Document Review* | Resident-billed services unlock only when KYC = Verified. Rejecting a document sets KYC to Failed with the reason |
 
-**Extra moments worth showing:** hierarchy **Move** (cycle-safe, goes to approval) · unit drawer actions with eligibility reasons · occupant change without billing change · billing reassignment with approval · Ask AARYA quick intents · role switch to see the same screens re-scoped.
+**Extra moments worth showing:** hierarchy **Move** (cycle-safe, goes to approval) · unit drawer actions with eligibility reasons · **Update occupant**: the previous occupant is end-dated and their services and billing stay with them · billing reassignment with approval · Ask AARYA quick intents · role switch to see the same screens re-scoped.
 
 ---
 
@@ -101,7 +104,7 @@ npm run dev        # http://localhost:5173
 |---|---|
 | **Dashboard** | Welcome header · offer carousel · My Services / amount-due tiles · Quick Links · KPI tiles · services-by-status, billing trend and MDU penetration charts · profile details |
 | **Accounts** | All Business Accounts (KPIs, search, filters, row actions) · **Account Hierarchy** (tree / list, search, expand / collapse, ancestor highlight, side panel, child creation, validated move) · Account Details (Overview, Child Accounts, Services, Billing, Contacts & Users, Requests, Activity History) · Create Child Account (5-step wizard) · Contacts & Delegation |
-| **MDU** | MDU Portfolio (cards / table, 7 KPIs) · Register New MDU (5-step wizard) · Property Details (Overview, Buildings & Units, Residents, Connectivity & Services, Billing & Contracts, Requests & Maintenance, Documents, Activity History) · **Buildings / Towers / Units** (unit grid + hierarchy, filters, bulk selection) · Unit drawer · Occupancy Management · Bulk Unit Import · My Home (resident) |
+| **MDU** | MDU Portfolio (cards / table, 7 KPIs) · Register New MDU (5-step wizard) · Property Details (Overview, Buildings & Units, Residents, Connectivity & Services, Billing & Contracts, Requests & Maintenance, Documents, Activity History) · **Buildings / Towers / Units** (unit grid + hierarchy, filters, bulk selection) · Unit drawer · **Occupant onboarding wizard** (find customer → consent OTP *or* new-customer details → eKYC → occupancy → review) · Verify occupant KYC · Occupancy Management (with KYC column) · Bulk Unit Import · My Home (resident) |
 | **Services** | Active Services (filters, export) · Subscription page (Current Active Offer, Change Plan, suspend / resume, add-ons, usage, equipment) · Service Availability · New Connection (6-step) · Plan Changes · Bulk Activation (6-step) · Order tracking |
 | **Bills & Payments** | Current Bill + Invoice / Payment History · Billing Hierarchy (consolidated vs child) · Invoices (detail, download, simulated pay) · Cost Allocation · Payments · Billing Preferences · Billing reassignment |
 | **Orders** | Expandable order cards with pagination → order tracking |
@@ -123,6 +126,8 @@ The layout is responsive: on mobile the top nav collapses to a drawer with a bot
 | **Bills & Payments**: Current Bill, invoice history<br>![Bills & Payments](docs/screenshots/08-bills-payments.png) | **Service Center**: Tickets History<br>![Service Center](docs/screenshots/09-service-center.png) |
 | **Approvals**: separation of duties<br>![Approvals](docs/screenshots/10-approvals.png) | **Settings**<br>![Settings](docs/screenshots/11-settings.png) |
 | **In-app Read me / demo guide**<br>![Demo guide](docs/screenshots/12-demo-guide.png) | **Mobile: resident view**<br><img src="docs/screenshots/13-mobile-resident.png" width="260" alt="Mobile resident" /> |
+| **Occupant onboarding: find customer**. Masked match for an existing Mobile customer<br>![Find customer](docs/screenshots/14-occupant-find-existing.png) | **Consent OTP**. Profile unlocks and KYC is reused<br>![Consent](docs/screenshots/15-occupant-consent.png) |
+| **New customer eKYC**. Privacy notice, Aadhaar OTP / DigiLocker / document<br>![eKYC](docs/screenshots/16-occupant-ekyc.png) | **Occupancy management with KYC status**<br>![Occupancy KYC](docs/screenshots/17-occupancy-kyc.png) |
 
 ---
 
@@ -141,8 +146,17 @@ The layout is responsive: on mobile the top nav collapses to a drawer with a bot
 | Controlled change | Approvals for moves, billing responsibility, sensitive data, bulk activation and property-admin grants; configurable policy for child accounts, bulk activation and billing changes |
 | Qualification gates activation | Orders require a passing qualification; *Additional Network Work Required* / *Service Not Available* block the journey |
 | Billing doesn't follow occupants | Occupancy changes leave services and billing untouched |
+| One customer, many services | Occupant onboarding looks up the operator customer base first (mobile / email / customer ID); a matching Mobile customer is **linked**, not duplicated; *Register new customer* re-checks for duplicates |
+| Consent before disclosure | Lookup returns masked name / mobile / email and service categories only; full profile unlocks after an OTP on the customer's registered mobile; every consent is logged on the customer (`ConsentRecord`) |
+| Identity before resident billing | New customers complete eKYC (Aadhaar OTP, DigiLocker, or document upload with operator review). `submitNewConnection` and bulk activation refuse resident-billed services unless KYC = Verified; property-billed services are unaffected |
+| Data minimisation | Only masked ID references (`XXXX-XXXX-1234`), method, status and timestamps are stored. OTPs and eKYC tokens are short-lived, in memory, and never persisted |
 
-> ⚠️ **Regulatory note (India DPDP Act 2023 / GDPR):** property managers can see occupant names and contacts for their units. Before customer use, validate purpose limitation and consent for that visibility; resident billing data is already hidden from managers.
+> ⚠️ **Regulatory note.** The prototype simulates, but does not certify, these controls:
+> - **DoT / TRAI subscriber verification**: identity is verified before activation.
+> - **Aadhaar Act s.29 and UIDAI rules**: no full Aadhaar storage; masked display; eKYC only via a licensed AUA/KUA in production.
+> - **DPDP Act 2023**: notice and consent, purpose limitation, consent log, withdrawal and erasure through the Service Center.
+>
+> Property managers still see occupant names and contacts for their units. Validate that visibility, plus assisted-KYC by property staff, with legal and compliance before customer use.
 
 ---
 
@@ -163,7 +177,7 @@ docs/screenshots/     images used in this README
 
 **Stack:** React 18 · TypeScript · Vite · Tailwind CSS · React Router (hash routing for static hosting) · Recharts · Lucide icons.
 
-**Entities:** Tenant · BusinessAccount · AccountRelationship · Contact · BillingAccount · BillingAccountRelationship · Invoice · Payment · CustomerAccount · Property · Building · Floor · Unit · OccupancyAssignment · ProductOffering · ServiceInstance (product subscription + service) · ServiceQualification · ProductOrder · ServiceRequest · Appointment · ApprovalRequest · AuditEvent · Role · User (with scoped grants) · Settings.
+**Entities:** Tenant · BusinessAccount · AccountRelationship · Contact · BillingAccount · BillingAccountRelationship · Invoice · Payment · CustomerAccount (with KycRecord + ConsentRecord) · Property · Building · Floor · Unit · OccupancyAssignment · ProductOffering · ServiceInstance (product subscription + service) · ServiceQualification · ProductOrder · ServiceRequest · Appointment · ApprovalRequest · AuditEvent · Role · User (with scoped grants) · Settings.
 
 ---
 
@@ -181,6 +195,7 @@ docs/screenshots/     images used in this README
 | Agreements (bulk contracts) | TMF651 | property billing model / contract documents |
 | Users, roles and permissions | TMF672 | `listUsers`, `inviteUser`, `updateUserAccess`, `decideApproval` |
 | Premises | TMF673 / TMF674 (mapped, not forced) | `registerProperty`, `listUnits`, `commitImport` |
+| Customer identification and eKYC | TMF632 / TMF629 (party and customer search); eKYC gateway (UIDAI AUA/KUA, DigiLocker), outside TMF scope | `lookupCustomer`, `sendConsentOtp`, `verifyConsentOtp`, `requestAadhaarOtp`, `verifyAadhaarOtp`, `fetchDigiLocker`, `submitKycDocument`, `onboardOccupant`, `completeOccupantKyc` |
 
 TMF666 covers billing and financial accounts only. It is deliberately **not** used as the single API for the enterprise hierarchy, and MDU buildings, floors and units live in their own premises domain with configurable mapping.
 
@@ -211,7 +226,7 @@ CHROME_PATH=/path/to/chrome npm run e2e
 ```
 
 - `e2e/smoke.mjs`: loads all 38 routes as all 8 personas and fails on any runtime error or blank page.
-- `e2e/journeys.mjs`: drives acceptance journeys **A–I** plus cross-tenant isolation and fails on any assertion or page error.
+- `e2e/journeys.mjs`: drives acceptance journeys **A–L** plus the duplicate-customer guard, the KYC gate on resident billing and cross-tenant isolation and fails on any assertion or page error.
 
 Latest run: **0 runtime errors; all journeys pass**. Mobile check at 390 px: no horizontal overflow.
 

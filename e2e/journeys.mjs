@@ -108,6 +108,18 @@ await page.getByRole('dialog').getByRole('button', { name: 'Import' }).click();
 await page.waitForTimeout(1600);
 ok('E: partial success', (await text()).includes('partial success'), (await text()).match(/\d+ units created · \d+ rows rejected/)?.[0]);
 
+// KYC gate: an occupant without verified KYC cannot get resident-billed broadband
+await as('U-200');
+const gateUnit = 'PRP-GV-A-205';
+if (gateUnit) {
+  await go(`/services/bulk?property=PRP-GV&units=${gateUnit}`);
+  await page.getByRole('button', { name: 'Continue' }).click();
+  await page.getByRole('button', { name: 'Bill each resident' }).click();
+  await page.getByRole('button', { name: 'Run availability checks' }).click();
+  await page.waitForTimeout(1600);
+  ok('KYC gate blocks resident billing', (await text()).includes('eKYC required'), gateUnit);
+} else ok('KYC gate unit available', false, 'no unverified free unit in seed');
+
 // Journey F: bulk activation → operator approval → fulfilment
 await go('/services/bulk?property=PRP-GV');
 await page.getByRole('button', { name: 'Select all ready' }).click();
@@ -134,6 +146,96 @@ for (let i = 0; i < 2; i++) {
 }
 const ft = await text();
 ok('F: fulfilled with per-unit results', /Completed\n\d+/.test(ft) || ft.includes('Completed'), ft.match(/Completed\s*\n?\s*\d+/)?.[0]);
+
+// Journey J: new (unregistered) customer onboarded as occupant with Aadhaar OTP eKYC
+await as('U-200');
+await go('/mdu/occupancy');
+const openAssign = async (unit) => {
+  await page.getByLabel('Property', { exact: true }).selectOption('PRP-GV');
+  await page.waitForTimeout(600);
+  await page.getByPlaceholder('Search unit, property or occupant').fill(unit);
+  await page.waitForTimeout(300);
+  await page.locator('tr', { hasText: unit }).getByRole('button', { name: /occupant/ }).click();
+  await page.waitForTimeout(300);
+};
+await openAssign('A-302');
+const dlg = page.getByRole('dialog');
+await dlg.getByLabel('Customer search').fill('9000012345');
+await dlg.getByRole('button', { name: 'Search' }).click();
+await page.waitForTimeout(700);
+ok('J: not registered', (await dlg.innerText()).includes('not yet registered'));
+await dlg.getByRole('button', { name: 'Register new customer' }).click();
+const di = dlg.locator('input');
+await di.nth(0).fill('Meghna Rao');
+await di.nth(2).fill('meghna.rao@mail.example');
+await di.nth(3).fill('1994-05-21');
+await dlg.getByRole('button', { name: 'Check & continue' }).click();
+await page.waitForTimeout(1200);
+await dlg.getByRole('checkbox').first().check();
+await dlg.getByPlaceholder('XXXX XXXX XXXX').fill('8123 4567 8901');
+await dlg.getByRole('button', { name: 'Send OTP' }).click();
+await page.waitForTimeout(600);
+await dlg.locator('input[inputmode=numeric]').nth(1).fill('135790');
+await dlg.getByRole('button', { name: 'Verify with UIDAI' }).click();
+await page.waitForTimeout(1500);
+ok('J: eKYC verified', (await dlg.innerText()).includes('KYC Verified'));
+await dlg.getByRole('button', { name: 'Continue' }).click();
+await dlg.getByRole('button', { name: 'Continue' }).click();
+await dlg.getByRole('button', { name: 'Confirm occupant' }).click();
+await page.waitForTimeout(800);
+ok('J: onboarded', (await dlg.innerText()).includes('Meghna Rao is now'));
+await dlg.getByRole('button', { name: 'Done' }).click();
+
+// Duplicate guard: registering an existing mobile as new is redirected to the existing customer
+await openAssign('A-103');
+await dlg.getByRole('button', { name: 'Register new customer' }).click();
+await di.nth(0).fill('Rohit V');
+await di.nth(1).fill('+91 98450 77001');
+await di.nth(2).fill('rv@mail.example');
+await di.nth(3).fill('1990-01-01');
+await dlg.getByRole('button', { name: 'Check & continue' }).click();
+await page.waitForTimeout(1200);
+ok('Dedupe: existing mobile detected', (await dlg.innerText()).includes('Switch to existing customer'));
+
+// Journey K: existing Mobile customer linked with OTP consent; KYC reused
+await dlg.getByRole('button', { name: 'Switch to existing customer' }).click();
+await dlg.getByRole('button', { name: 'Send consent OTP' }).click();
+await page.waitForTimeout(600);
+await dlg.locator('input[inputmode=numeric]').fill('246810');
+await dlg.getByRole('button', { name: 'Verify OTP' }).click();
+await page.waitForTimeout(700);
+const kt = await dlg.innerText();
+ok('K: consent + profile unlocked', kt.includes('Rohit Verma') && kt.includes('KYC is reused'));
+await dlg.getByRole('button', { name: 'Continue' }).click();
+await dlg.getByRole('button', { name: 'Continue' }).click();
+await dlg.getByRole('button', { name: 'Confirm occupant' }).click();
+await page.waitForTimeout(800);
+ok('K: linked existing customer', (await dlg.innerText()).includes('Existing customer profile and KYC were reused'));
+await dlg.getByRole('button', { name: 'Done' }).click();
+
+// Journey L: legacy occupant without KYC → document upload → operator approves → Verified
+await as('U-200');
+await go('/mdu/units?property=PRP-GV');
+await page.getByRole('button', { name: /^A-205/ }).click();
+await page.waitForTimeout(900);
+await page.getByRole('button', { name: 'Verify occupant KYC' }).click();
+const vk = page.getByRole('dialog', { name: /Verify KYC/ });
+await vk.getByRole('checkbox').first().check();
+await vk.getByRole('button', { name: /Document upload/ }).click();
+await vk.locator('input').nth(1).fill('ABCDE1234F');
+await vk.locator('input[type=file]').setInputFiles({ name: 'pan.jpg', mimeType: 'image/jpeg', buffer: Buffer.from('demo') });
+await vk.getByRole('button', { name: 'Submit for review' }).click();
+await page.waitForTimeout(700);
+await vk.getByRole('button', { name: 'Save KYC result' }).click();
+await page.waitForTimeout(800);
+await as('U-900');
+await go('/approvals');
+const card = page.locator('div.rounded-card', { hasText: 'Harish Gowda' }).first();
+await card.getByRole('button', { name: 'Approve' }).click();
+await page.getByRole('button', { name: 'Approve & apply' }).click();
+await page.waitForTimeout(800);
+const kycNow = await page.evaluate(() => JSON.parse(localStorage.getItem('6d-mdu-selfcare-db')).customers.find((c) => c.id === 'CUS-LEGACY205').kyc.status);
+ok('L: document KYC approved by operator', kycNow === 'Verified', kycNow);
 
 // Journey G: consolidated billing drill-down
 await as('U-103');

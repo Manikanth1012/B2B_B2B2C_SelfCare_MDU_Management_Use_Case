@@ -3,7 +3,8 @@ import { listProperties, listUnits } from '../../api/api';
 import { useApi } from '../../lib/hooks';
 import { date } from '../../lib/format';
 import { Card, DataTable, ErrorState, Kpi, Loading, PageHeader, SearchBox, Select, StatusBadge } from '../../components/ui';
-import { AssignOccupantModal, UnitDrawer } from './UnitDrawer';
+import { UnitDrawer } from './UnitDrawer';
+import { KycBadge, OccupantOnboardingModal } from './OccupantOnboarding';
 
 export function Occupancy() {
   const props = useApi(listProperties);
@@ -20,11 +21,12 @@ export function Occupancy() {
   return (
     <div>
       <PageHeader title="Occupancy Management" subtitle="Assign, update and end-date occupants. Occupancy changes never alter active services or billing responsibility." crumbs={[{ label: 'MDU Portfolio', to: '/mdu' }, { label: 'Occupancy' }]} />
-      <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+      <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <Kpi label="Units" value={all.length} />
         <Kpi label="Occupied" value={all.filter((u) => u.occupancy === 'Occupied').length} />
         <Kpi label="Vacant" value={all.filter((u) => u.occupancy === 'Vacant').length} />
         <Kpi label="Occupancy unknown" value={all.filter((u) => u.occupancy === 'Unknown').length} tone="orange" hint="Verify with site office" />
+        <Kpi label="Occupants without verified KYC" value={all.filter((u) => u.occupant && u.occupant.kyc.status !== 'Verified').length} tone="red" hint="Resident-billed orders blocked" />
       </div>
       <Card>
         <div className="mb-3 grid gap-2 sm:grid-cols-[1fr_220px_160px]">
@@ -45,6 +47,7 @@ export function Occupancy() {
             { key: 'o', header: 'Occupancy', render: (u) => <StatusBadge status={u.occupancy} />, sort: (u) => u.occupancy },
             { key: 'n', header: 'Occupant', render: (u) => (u.occupant ? `${u.occupant.name} (${u.occupant.role})` : '—') },
             { key: 's', header: 'Since', render: (u) => date(u.occupant?.since) },
+            { key: 'k', header: 'KYC', render: (u) => (u.occupant ? <KycBadge kyc={u.occupant.kyc} /> : '—'), sort: (u) => u.occupant?.kyc.status ?? '' },
             { key: 'c', header: 'Connectivity', render: (u) => <StatusBadge status={u.connectivity} /> },
             {
               key: 'a',
@@ -60,7 +63,10 @@ export function Occupancy() {
         />
       </Card>
       {unit && <UnitDrawer unitId={unit} onClose={() => setUnit(null)} />}
-      {assign && <AssignOccupantModal unitId={assign} onClose={() => setAssign(null)} />}
+      {assign && (() => {
+        const u = all.find((x) => x.id === assign)!;
+        return <OccupantOnboardingModal unitId={u.id} unitLabel={`${u.propertyName} ${u.number}`} currentOccupant={u.occupant?.name} onClose={() => setAssign(null)} />;
+      })()}
     </div>
   );
 }

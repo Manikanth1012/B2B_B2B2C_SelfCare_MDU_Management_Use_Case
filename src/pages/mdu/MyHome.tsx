@@ -3,6 +3,7 @@ import { Home, LifeBuoy, Receipt, Wifi } from 'lucide-react';
 import { currentUser, getUnit, listInvoices, listRequests } from '../../api/api';
 import { useApi } from '../../lib/hooks';
 import { date, money } from '../../lib/format';
+import { KycBadge } from './OccupantOnboarding';
 import { Card, DataTable, ErrorState, Kpi, LinkButton, Loading, PageHeader, Stat, StatusBadge } from '../../components/ui';
 
 async function load() {
@@ -62,6 +63,12 @@ export function MyHome() {
             </Stat>
             <Stat label="Unit type">{unit.unitType}</Stat>
             <Stat label="Registered occupant">{unit.occupant ? `${unit.occupant.name} (${unit.occupant.role})` : '—'}</Stat>
+            {unit.occupant && (
+              <Stat label="Identity (KYC)">
+                <KycBadge kyc={unit.occupant.kyc} />
+                <span className="mt-0.5 block text-[11px] text-ink-400">{[unit.occupant.kyc.method, unit.occupant.kyc.maskedRef, unit.occupant.kyc.source].filter(Boolean).join(' · ')}</span>
+              </Stat>
+            )}
           </dl>
           <p className="mt-3 text-[11px] text-slate-500">You can only see your own unit, subscriptions, bills and requests.</p>
         </Card>

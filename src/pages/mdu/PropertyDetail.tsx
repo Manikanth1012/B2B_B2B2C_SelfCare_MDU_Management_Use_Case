@@ -8,6 +8,7 @@ import { date, dateTime, money, pct } from '../../lib/format';
 import { Card, DataTable, ErrorState, Kpi, LinkButton, Loading, PageHeader, ProgressBar, SearchBox, Stat, StatusBadge, Tabs, Tag, useToast } from '../../components/ui';
 import { BuildingsUnits } from './BuildingsUnits';
 import { UnitDrawer } from './UnitDrawer';
+import { KycBadge } from './OccupantOnboarding';
 import { CHART } from '../Dashboard';
 
 export function PropertyDetail() {
@@ -207,6 +208,7 @@ function Residents({ propertyId }: { propertyId: string }) {
           { key: 'n', header: 'Occupant', render: (u) => u.occupant!.name, sort: (u) => u.occupant!.name, mobileHidden: true },
           { key: 'r', header: 'Relationship', render: (u) => u.occupant!.role },
           { key: 's', header: 'Since', render: (u) => date(u.occupant!.since) },
+          { key: 'k', header: 'KYC', render: (u) => <KycBadge kyc={u.occupant!.kyc} />, sort: (u) => u.occupant!.kyc.status },
           { key: 'c', header: 'Connectivity', render: (u) => <StatusBadge status={u.connectivity} /> },
           { key: 'p', header: 'Plan', render: (u) => u.services.find((s) => s.offeringId.startsWith('OFF-R'))?.offeringName ?? '—' },
         ]}

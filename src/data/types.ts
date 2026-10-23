@@ -123,13 +123,41 @@ export interface Payment {
 
 /* ---------- Customers (B2B2C residents) ---------- */
 
+export type KycStatus = 'Verified' | 'Pending Review' | 'Failed' | 'Not Started';
+export type KycMethod = 'Aadhaar OTP eKYC' | 'DigiLocker' | 'Document upload (manual review)' | 'Reused from existing service';
+
+/**
+ * Know-your-customer evidence. Only a masked reference is kept — never a full
+ * Aadhaar or document number (Aadhaar Act s.29 / DPDP data minimisation).
+ */
+export interface KycRecord {
+  status: KycStatus;
+  method?: KycMethod;
+  idType?: 'Aadhaar' | 'PAN' | 'Passport' | 'Voter ID' | 'Driving Licence';
+  maskedRef?: string;
+  verifiedAt?: ISODate;
+  /** Where the original verification happened, e.g. "Mobile postpaid activation". */
+  source?: string;
+  note?: string;
+}
+
+export interface ConsentRecord {
+  purpose: string;
+  channel: 'OTP' | 'Portal checkbox' | 'Paper CAF';
+  at: ISODate;
+  capturedBy: string;
+}
+
 export interface CustomerAccount {
   id: ID;
   tenantId: TenantId;
   name: string;
   email: string;
   phone: string;
+  dob?: ISODate;
   createdAt: ISODate;
+  kyc: KycRecord;
+  consents: ConsentRecord[];
 }
 
 /* ---------- Physical premises (MDU) ---------- */
@@ -209,7 +237,7 @@ export type ConnectivityStatus =
 
 /* ---------- Catalogue, inventory, ordering ---------- */
 
-export type ServiceCategory = 'FTTH Broadband' | 'Leased Line' | 'SD-WAN' | 'Voice' | 'IoT' | 'Managed Services';
+export type ServiceCategory = 'FTTH Broadband' | 'Leased Line' | 'SD-WAN' | 'Voice' | 'IoT' | 'Managed Services' | 'Mobile';
 
 export interface ProductOffering {
   id: ID;
@@ -344,14 +372,15 @@ export type ApprovalType =
   | 'Bulk Service Activation'
   | 'Reassign Property Administrator'
   | 'Modify Sensitive Account Data'
-  | 'Register Property';
+  | 'Register Property'
+  | 'KYC Document Review';
 
 export interface ApprovalRequest {
   id: ID;
   tenantId: TenantId;
   type: ApprovalType;
   summary: string;
-  target: { kind: 'account' | 'billing' | 'property' | 'order'; id: ID };
+  target: { kind: 'account' | 'billing' | 'property' | 'order' | 'customer'; id: ID };
   payload: Record<string, unknown>;
   requestedBy: ID;
   requestedAt: ISODate;

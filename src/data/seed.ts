@@ -22,7 +22,7 @@ import type {
   User,
 } from './types';
 
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 export const TODAY = '2026-10-23';
 
 function mulberry32(seed: number) {
@@ -101,6 +101,8 @@ export const OFFERINGS: ProductOffering[] = [
   { id: 'OFF-P01', name: 'Common Area Wi-Fi', category: 'Managed Services', segment: 'Business', mrc: 15000, nrc: 20000, contractMonths: 36 },
   { id: 'OFF-P02', name: 'CCTV IoT Connect', category: 'IoT', segment: 'Business', mrc: 6500, nrc: 0, contractMonths: 24 },
   { id: 'OFF-P03', name: 'Lift Emergency Voice Lines', category: 'Voice', segment: 'Business', mrc: 2400, nrc: 0, contractMonths: 24 },
+  { id: 'OFF-M01', name: 'Mobile Postpaid 599 (5G, 75 GB)', category: 'Mobile', segment: 'Residential', mrc: 599, nrc: 0, contractMonths: 0 },
+  { id: 'OFF-M02', name: 'Mobile Prepaid 299 (28 days)', category: 'Mobile', segment: 'Residential', mrc: 299, nrc: 0, contractMonths: 0 },
 ];
 
 const off = (id: string) => OFFERINGS.find((o) => o.id === id)!;
@@ -277,9 +279,22 @@ export function buildSeed(): Database {
   const resPlans = ['OFF-R01', 'OFF-R02', 'OFF-R02', 'OFF-R03', 'OFF-R04'];
   const typeByPos: UnitType[] = ['3BHK', '2BHK', '2BHK', '1BHK', '2BHK', '3BHK'];
 
+  // KYC/consent attributes use their own PRNG so the unit and service layout stays stable.
+  const krnd = mulberry32(4242);
+  const kycFor = (since: string): Pick<CustomerAccount, 'kyc' | 'consents'> => {
+    const r = krnd();
+    const last4 = String(1000 + Math.floor(krnd() * 8999));
+    if (r < 0.07) return { kyc: { status: 'Not Started', note: 'Legacy occupant migrated before self-care eKYC' }, consents: [] };
+    if (r < 0.1) return { kyc: { status: 'Pending Review', method: 'Document upload (manual review)', idType: 'Passport', maskedRef: `XXXXX${last4}`, note: 'Awaiting back-office document check' }, consents: [{ purpose: 'Identity verification for telecom services', channel: 'Portal checkbox', at: since, capturedBy: 'Self' }] };
+    const digi = r > 0.75;
+    return {
+      kyc: { status: 'Verified', method: digi ? 'DigiLocker' : 'Aadhaar OTP eKYC', idType: 'Aadhaar', maskedRef: `XXXX-XXXX-${last4}`, verifiedAt: since, source: 'Broadband onboarding' },
+      consents: [{ purpose: 'Identity verification for telecom services', channel: 'OTP', at: since, capturedBy: 'Self' }],
+    };
+  };
   const addCustomer = (): CustomerAccount => {
     const name = `${pick(FIRST)} ${pick(LAST)}`;
-    const c: CustomerAccount = { id: nid('CUS'), tenantId: 'TEN-RES', name, email: name.toLowerCase().replace(' ', '.') + seq + '@mail.example', phone: '+91 9' + Math.floor(100000000 + rnd() * 899999999), createdAt: '2024-08-01' };
+    const c: CustomerAccount = { id: nid('CUS'), tenantId: 'TEN-RES', name, email: name.toLowerCase().replace(' ', '.') + seq + '@mail.example', phone: '+91 9' + Math.floor(100000000 + rnd() * 899999999), createdAt: '2024-08-01', ...kycFor('2024-08-01') };
     db.customers.push(c);
     return c;
   };
@@ -363,11 +378,30 @@ export function buildSeed(): Database {
   GV('A-302').occupancy = 'Vacant';
   // A-104: resident persona Sneha Kulkarni with an active 300 Mbps subscription (Journey I).
   clearUnit('PRP-GV-A-104');
-  const sneha: CustomerAccount = { id: 'CUS-SNEHA', tenantId: 'TEN-RES', name: 'Sneha Kulkarni', email: 'sneha.kulkarni@mail.example', phone: '+91 98450 11223', createdAt: '2024-08-20' };
+  const sneha: CustomerAccount = {
+    id: 'CUS-SNEHA', tenantId: 'TEN-RES', name: 'Sneha Kulkarni', email: 'sneha.kulkarni@mail.example', phone: '+91 98450 11223', dob: '1991-03-14', createdAt: '2023-02-11',
+    kyc: { status: 'Verified', method: 'Aadhaar OTP eKYC', idType: 'Aadhaar', maskedRef: 'XXXX-XXXX-4417', verifiedAt: '2023-02-11', source: 'Mobile postpaid activation' },
+    consents: [{ purpose: 'Identity verification for telecom services', channel: 'OTP', at: '2023-02-11', capturedBy: 'Self' }, { purpose: 'Link Green Valley A-104 occupancy to existing customer profile', channel: 'OTP', at: '2024-08-20', capturedBy: 'Priya Menon' }],
+  };
   db.customers.push(sneha);
   GV('A-104').occupancy = 'Occupied';
   db.occupancies.push({ id: 'OCC-SNEHA', unitId: 'PRP-GV-A-104', customerId: sneha.id, role: 'Owner', validFrom: '2024-08-20' });
   db.billingAccounts.push({ id: 'BA-7001', tenantId: 'TEN-RES', name: 'Sneha Kulkarni – Home', type: 'Resident', payerRef: { kind: 'customer', id: sneha.id }, currency: 'INR', billCycleDay: 5, paymentMethod: 'UPI', invoiceDelivery: 'Email', paperless: true, status: 'Active', creditLimit: 10000 });
+  // Sneha was a mobile customer first; her broadband reuses that profile and KYC (convergent customer).
+  db.billingAccounts.push({ id: 'BA-7002', tenantId: 'TEN-RES', name: 'Sneha Kulkarni – Mobile', type: 'Resident', payerRef: { kind: 'customer', id: sneha.id }, currency: 'INR', billCycleDay: 12, paymentMethod: 'UPI', invoiceDelivery: 'Email', paperless: true, status: 'Active', creditLimit: 5000 });
+  S({ offeringId: 'OFF-M01', owner: { kind: 'customer', id: sneha.id }, location: 'Mobile +91 98450 11223', billingAccountId: 'BA-7002', status: 'Active', activationDate: '2023-02-11', mrc: 599, equipment: [{ type: '5G SIM', serial: '8991 2310 0044 1723' }] }, 'TEN-RES');
+  // Existing mobile-only customers — not yet occupants anywhere. Used by the occupant onboarding journey.
+  const mobileOnly: [string, string, string, string, 'OFF-M01' | 'OFF-M02', string, string][] = [
+    ['CUS-MOB1', 'Rohit Verma', '+91 98450 77001', 'rohit.verma@mail.example', 'OFF-M01', '2022-06-03', '3381'],
+    ['CUS-MOB2', 'Ayesha Siddiqui', '+91 99001 22334', 'ayesha.s@mail.example', 'OFF-M02', '2024-01-19', '9024'],
+    ['CUS-MOB3', 'Vivek Nair', '+91 97400 55667', 'vivek.nair@mail.example', 'OFF-M01', '2021-11-27', '6650'],
+  ];
+  mobileOnly.forEach(([id, name, phone, email, off, since, last4], i) => {
+    db.customers.push({ id, tenantId: 'TEN-RES', name, phone, email, createdAt: since, kyc: { status: 'Verified', method: 'Aadhaar OTP eKYC', idType: 'Aadhaar', maskedRef: `XXXX-XXXX-${last4}`, verifiedAt: since, source: off === 'OFF-M01' ? 'Mobile postpaid activation' : 'Mobile prepaid activation' }, consents: [{ purpose: 'Identity verification for telecom services', channel: 'OTP', at: since, capturedBy: 'Self' }] });
+    const ba = `BA-71${i}0`;
+    db.billingAccounts.push({ id: ba, tenantId: 'TEN-RES', name: `${name} – Mobile`, type: 'Resident', payerRef: { kind: 'customer', id }, currency: 'INR', billCycleDay: 12, paymentMethod: off === 'OFF-M02' ? 'UPI' : 'Card', invoiceDelivery: 'Email', paperless: true, status: 'Active', creditLimit: 5000 });
+    S({ offeringId: off, owner: { kind: 'customer', id }, location: `Mobile ${phone}`, billingAccountId: ba, status: 'Active', activationDate: since, mrc: off === 'OFF-M01' ? 599 : 299, equipment: [{ type: '5G SIM', serial: `8991 2310 00${i}5 ${last4}` }] }, 'TEN-RES');
+  });
   const snehaSrv = S({ offeringId: 'OFF-R02', owner: { kind: 'customer', id: sneha.id }, unitId: 'PRP-GV-A-104', propertyId: 'PRP-GV', location: 'Green Valley Residences, A-104', billingAccountId: 'BA-7001', status: 'Active', activationDate: '2024-09-02', contractEnd: '2026-12-01', mrc: 999, addOns: ['ADD-OTT'], equipment: [{ type: 'GPON ONT + Wi-Fi 6', serial: 'ONT48213377' }] }, 'TEN-EVG');
   // A-101..A-103 vacant + ready so bulk activation has candidates in Tower A.
   for (const n of ['A-103', 'A-105', 'A-201', 'A-202']) {
@@ -375,15 +409,22 @@ export function buildSeed(): Database {
     GV(n).occupancy = n === 'A-201' ? 'Unknown' : 'Vacant';
   }
 
+  // A-205: occupied by a legacy resident with no KYC yet → demonstrates the KYC gate and "Verify occupant KYC".
+  clearUnit('PRP-GV-A-205');
+  GV('A-205').occupancy = 'Occupied';
+  db.customers.push({ id: 'CUS-LEGACY205', tenantId: 'TEN-RES', name: 'Harish Gowda', email: 'harish.gowda@mail.example', phone: '+91 98861 40205', createdAt: '2019-04-02', kyc: { status: 'Not Started', note: 'Legacy occupant migrated before self-care eKYC' }, consents: [] });
+  db.occupancies.push({ id: 'OCC-LEGACY205', unitId: 'PRP-GV-A-205', customerId: 'CUS-LEGACY205', role: 'Owner', validFrom: '2019-04-02' });
+
   /* ---------------- Invoices & payments ---------------- */
   const months = ['2026-05', '2026-06', '2026-07', '2026-08', '2026-09', '2026-10'];
   const costCentre = (s: ServiceInstance) => {
     if (s.unitId) return s.unitId.split('-').slice(2).join('-');
+    if (s.owner.kind === 'customer') return 'Mobile';
     if (s.propertyId) return 'Common Areas';
     const acc = db.accounts.find((a) => a.id === s.businessAccountId);
     return acc?.name ?? 'Unallocated';
   };
-  const invoiceAccounts = db.billingAccounts.filter((b) => b.type !== 'Aggregator' && (b.type !== 'Resident' || b.id === 'BA-7001' || rnd() < 0.25));
+  const invoiceAccounts = db.billingAccounts.filter((b) => b.type !== 'Aggregator' && (b.type !== 'Resident' || b.id === 'BA-7001' || b.id === 'BA-7002' || rnd() < 0.25));
   for (const ba of invoiceAccounts) {
     // A consolidated account's own invoice only carries services billed directly to it;
     // child accounts invoice separately and roll up in the hierarchy view.
@@ -459,6 +500,12 @@ export function buildSeed(): Database {
   });
   db.appointments.push({ id: nid('APT'), requestId: gvRiser, propertyId: 'PRP-GV', slot: '2026-10-27', window: '10:00–17:00', technician: 'Civil crew – Team 3', status: 'Scheduled' });
 
+  const pendingKyc = db.occupancies
+    .filter((o) => !o.validTo && o.unitId.startsWith('PRP-GV-'))
+    .map((o) => ({ o, c: db.customers.find((c) => c.id === o.customerId)! }))
+    .find((x) => x.c.kyc.status === 'Pending Review');
+  if (pendingKyc)
+    db.approvals.push({ id: nid('APR'), tenantId: 'TEN-EVG', type: 'KYC Document Review', summary: `Verify ${pendingKyc.c.kyc.idType} for ${pendingKyc.c.name} (${pendingKyc.o.unitId.replace('PRP-GV-', 'Green Valley ')})`, target: { kind: 'customer', id: pendingKyc.c.id }, payload: { customerId: pendingKyc.c.id, unitId: pendingKyc.o.unitId, idType: pendingKyc.c.kyc.idType, maskedRef: pendingKyc.c.kyc.maskedRef }, requestedBy: 'U-200', requestedAt: '2026-10-20T11:00:00Z', status: 'Pending' });
   db.approvals.push(
     { id: nid('APR'), tenantId: 'TEN-6DGE', type: 'Create Child Account', summary: 'Create branch "Mumbai Sales Office" under 6D India', target: { kind: 'account', id: 'ACC-1130' }, payload: { accountId: 'ACC-1130' }, requestedBy: 'U-101', requestedAt: '2026-10-19T09:20:00Z', status: 'Pending' },
     { id: nid('APR'), tenantId: 'TEN-6DGE', type: 'Change Billing Responsibility', summary: 'Move Hyderabad Office services from India Corporate Billing to a new site billing account', target: { kind: 'billing', id: 'BA-9100' }, payload: { accountId: 'ACC-1120' }, requestedBy: 'U-103', requestedAt: '2026-10-15T12:00:00Z', status: 'Pending' },

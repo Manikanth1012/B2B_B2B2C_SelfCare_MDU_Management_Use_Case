@@ -1,18 +1,19 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LifeBuoy, PauseCircle, PlayCircle, Plus, Radar, Repeat, UserPlus } from 'lucide-react';
-import { assignOccupant, can, checkAvailability, currentUser, getUnit, setOccupancy } from '../../api/api';
+import { LifeBuoy, PauseCircle, PlayCircle, Plus, Radar, Repeat, ShieldCheck, UserPlus } from 'lucide-react';
+import { can, checkAvailability, currentUser, getUnit, setOccupancy } from '../../api/api';
+import { KycBadge, OccupantOnboardingModal, VerifyKycModal } from './OccupantOnboarding';
 import type { Occupancy, ServiceQualification } from '../../data/types';
 import { useApi } from '../../lib/hooks';
 import { date, money } from '../../lib/format';
-import { Button, Drawer, ErrorState, Field, inputCls, Loading, Modal, Select, Stat, StatusBadge, useAction } from '../../components/ui';
-import { TODAY } from '../../data/seed';
+import { Button, Drawer, ErrorState, Loading, Stat, StatusBadge, useAction } from '../../components/ui';
 
 export function UnitDrawer({ unitId, onClose }: { unitId: string; onClose: () => void }) {
   const q = useApi(() => getUnit(unitId), [unitId]);
   const nav = useNavigate();
   const [qual, setQual] = useState<ServiceQualification | null>(null);
   const [assigning, setAssigning] = useState(false);
+  const [verifying, setVerifying] = useState(false);
   const { run, busy } = useAction();
   const u = q.data;
   const broadband = u?.services.find((s) => s.offeringId.startsWith('OFF-R') && s.status !== 'Terminated');
@@ -61,6 +62,12 @@ export function UnitDrawer({ unitId, onClose }: { unitId: string; onClose: () =>
             <Stat label="Existing service ref">{u.existingServiceRef}</Stat>
             <Stat label="Occupant / authorised contact">{u.occupant ? `${u.occupant.name} (${u.occupant.role})` : 'None recorded'}</Stat>
             <Stat label="Since">{date(u.occupant?.since)}</Stat>
+            {u.occupant && (
+              <Stat label="Customer KYC">
+                <KycBadge kyc={u.occupant.kyc} />
+                <span className="mt-0.5 block text-[11px] text-ink-400">{[u.occupant.kyc.method, u.occupant.kyc.maskedRef].filter(Boolean).join(' · ') || u.occupant.kyc.note}</span>
+              </Stat>
+            )}
             {u.occupant && (
               <>
                 <Stat label="Email">{u.occupant.email || '—'}</Stat>
@@ -119,6 +126,11 @@ export function UnitDrawer({ unitId, onClose }: { unitId: string; onClose: () =>
                   {u.occupant ? 'Update occupant' : 'Assign occupant'}
                 </ActionBtn>
               )}
+              {manage && u.occupant && u.occupant.kyc.status !== 'Verified' && (
+                <ActionBtn icon={<ShieldCheck className="h-4 w-4" />} disabled={u.occupant.kyc.status === 'Pending Review' ? 'Document review pending with operator' : null} onClick={() => setVerifying(true)}>
+                  Verify occupant KYC
+                </ActionBtn>
+              )}
               <ActionBtn icon={<Radar className="h-4 w-4" />} loading={busy} onClick={async () => setQual((await run(() => checkAvailability({ kind: 'unit', unitId: u.id }))) ?? null)}>
                 Check service availability
               </ActionBtn>
@@ -150,7 +162,8 @@ export function UnitDrawer({ unitId, onClose }: { unitId: string; onClose: () =>
           </div>
         </div>
       )}
-      {assigning && u && <AssignOccupantModal unitId={u.id} onClose={() => setAssigning(false)} />}
+      {assigning && u && <OccupantOnboardingModal unitId={u.id} unitLabel={`${u.propertyName} ${u.number}`} currentOccupant={u.occupant?.name} onClose={() => setAssigning(false)} />}
+      {verifying && u?.occupant && <VerifyKycModal unitId={u.id} occupantName={u.occupant.name} onClose={() => setVerifying(false)} />}
     </Drawer>
   );
 }
@@ -164,46 +177,5 @@ function ActionBtn({ children, icon, onClick, disabled, loading }: { children: R
       </Button>
       {disabled && <p className="mt-0.5 text-[11px] text-slate-500">{disabled}</p>}
     </div>
-  );
-}
-
-export function AssignOccupantModal({ unitId, onClose }: { unitId: string; onClose: () => void }) {
-  const [f, setF] = useState({ name: '', email: '', phone: '', role: 'Tenant' as 'Owner' | 'Tenant' | 'Authorised Contact', from: TODAY });
-  const { run, busy } = useAction();
-  return (
-    <Modal
-      open
-      onClose={onClose}
-      title="Assign occupant"
-      footer={
-        <>
-          <Button variant="secondary" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button loading={busy} disabled={!f.name.trim()} onClick={async () => (await run(() => assignOccupant(unitId, f), 'Occupant assigned')) !== undefined && onClose()}>
-            Assign
-          </Button>
-        </>
-      }
-    >
-      <p className="mb-3 rounded bg-blue-50 p-2 text-xs text-blue-900">The previous occupancy is end-dated the day before. Existing subscriptions and billing responsibility do not transfer automatically when the occupant changes.</p>
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="Full name" required>
-          <input className={inputCls} value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} />
-        </Field>
-        <Field label="Relationship">
-          <Select label="Relationship" value={f.role} onChange={(v) => setF({ ...f, role: v as typeof f.role })} options={['Owner', 'Tenant', 'Authorised Contact']} />
-        </Field>
-        <Field label="Email">
-          <input className={inputCls} value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} />
-        </Field>
-        <Field label="Phone">
-          <input className={inputCls} value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value })} />
-        </Field>
-        <Field label="Effective from">
-          <input type="date" className={inputCls} value={f.from} onChange={(e) => setF({ ...f, from: e.target.value })} />
-        </Field>
-      </div>
-    </Modal>
   );
 }

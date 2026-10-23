@@ -34,6 +34,18 @@ const JOURNEYS: { id: string; title: string; persona: string; steps: { text: str
     steps: [{ text: 'Bulk Activation → Green Valley → “Select all ready”', to: '/services/bulk?property=PRP-GV' }, { text: 'Plan → billing → run availability checks → submit (awaits approval)' }, { text: 'Switch to Arjun Nair (operator) → Approvals → Approve' }, { text: 'Open the order → “Simulate next provisioning step” twice → see completed and failed units', to: '/orders' }],
   },
   {
+    id: 'J', title: 'Onboard a new (unregistered) customer as occupant with eKYC', persona: 'U-200',
+    steps: [{ text: 'Unit grid → Tower A → A-302 → Assign occupant', to: '/mdu/units?property=PRP-GV' }, { text: 'Search 90000 12345 → “not yet registered” → Register new customer' }, { text: 'Enter name, mobile, email, date of birth → duplicate check runs' }, { text: 'Accept the privacy notice → Aadhaar OTP eKYC (any 12 digits, OTP 135790) → Verified' }, { text: 'Set relationship and start date, invite to self-care → Confirm' }],
+  },
+  {
+    id: 'K', title: 'Link an existing Mobile customer as occupant (KYC reused)', persona: 'U-200',
+    steps: [{ text: 'Occupancy Management → A-103 → Assign occupant', to: '/mdu/occupancy' }, { text: 'Search 98450 77001 → masked match: Mobile, KYC Verified' }, { text: 'Link this customer → send consent OTP (246810) → profile unlocks' }, { text: 'Confirm: no duplicate customer, KYC reused from mobile activation' }, { text: 'Tip: “Register new customer” with the same mobile is caught by the duplicate check' }],
+  },
+  {
+    id: 'L', title: 'Complete KYC for a legacy occupant; operator reviews the document', persona: 'U-200',
+    steps: [{ text: 'Unit grid → A-205 (Harish Gowda, KYC Not Started)', to: '/mdu/units?property=PRP-GV' }, { text: 'Resident-billed bulk activation of A-205 is rejected: “eKYC required”' }, { text: 'Verify occupant KYC → Document upload (PAN ABCDE1234F + file) → Save' }, { text: 'Switch to Arjun Nair → Approvals → approve the KYC Document Review → Verified', to: '/approvals' }],
+  },
+  {
     id: 'G', title: 'Consolidated billing drill-down', persona: 'U-103',
     steps: [{ text: 'Billing Hierarchy → 6D Global Group Billing (consolidated balance)', to: '/billing/hierarchy?focus=BA-9000' }, { text: 'Drill into India Corporate → Bangalore Office Billing; toggle consolidated vs own invoices' }],
   },
@@ -54,6 +66,7 @@ const RULES = [
   ['Authorisation in the API layer', 'Every call is filtered by the user’s account / billing / property / unit scope. Delegation can’t exceed your own role or scope.'],
   ['Controlled change', 'Hierarchy moves, billing responsibility, sensitive data, bulk activation and property-admin grants go through approval with separation of duties.'],
   ['Qualification gates activation', '“Additional Network Work Required” and “Service Not Available” block ordering.'],
+  ['Customer identity before resident billing', 'Occupants are found or registered through a lookup-first flow (no duplicates), linked with OTP consent, and verified by eKYC. Resident-billed orders require KYC Verified; only masked ID references are stored.'],
 ];
 
 const TMF = [
