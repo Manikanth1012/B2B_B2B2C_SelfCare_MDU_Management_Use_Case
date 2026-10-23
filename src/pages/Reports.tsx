@@ -128,13 +128,13 @@ export function Reports() {
         </>
       )}
       {tab === 'revenue' && (
-        <Card title="Monthly billed revenue by product family (INR)">
+        <Card title="Monthly billed revenue by product family (USD)">
           <div className="h-80">
             <ResponsiveContainer>
               <AreaChart data={revenue}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#ECECEF" />
                 <XAxis dataKey="month" fontSize={12} />
-                <YAxis fontSize={11} width={70} tickFormatter={(v) => money(v, 'INR', true)} />
+                <YAxis fontSize={11} width={70} tickFormatter={(v) => money(v, 'USD', true)} />
                 <Tooltip formatter={(v: number) => money(v)} />
                 <Legend wrapperStyle={{ fontSize: 12 }} />
                 {revCats.map((c, i) => (

@@ -122,7 +122,7 @@ export function Dashboard() {
         <Kpi label="Total services" value={services.length} tone="orange" hint={`${services.filter((s) => s.status === 'Active').length} active`} icon={<Wifi className="h-4 w-4" />} to="/services" />
         {properties.length > 0 && <Kpi label="MDU properties" value={properties.length} hint={`${units} units`} icon={<Building2 className="h-4 w-4" />} to="/mdu" />}
         {properties.length > 0 && <Kpi label="Connected units" value={`${pct(connected, units)}%`} tone="green" hint={`${connected} of ${units}`} to="/reports" />}
-        <Kpi label="Outstanding" value={money(outstanding, 'INR', true)} tone={overdue ? 'red' : 'default'} hint={overdue ? `${money(overdue, 'INR', true)} overdue` : 'Nothing overdue'} icon={<CreditCard className="h-4 w-4" />} to="/billing" />
+        <Kpi label="Outstanding" value={money(outstanding, 'USD', true)} tone={overdue ? 'red' : 'default'} hint={overdue ? `${money(overdue, 'USD', true)} overdue` : 'Nothing overdue'} icon={<CreditCard className="h-4 w-4" />} to="/billing" />
         <Kpi label="Open requests" value={openReq.length} hint={`${openReq.filter((r) => r.kind === 'Incident').length} incidents`} icon={<AlertTriangle className="h-4 w-4" />} to="/requests" />
         <Kpi label="Awaiting my approval" value={pendingApprovals.length} tone={pendingApprovals.length ? 'orange' : 'default'} icon={<ClipboardCheck className="h-4 w-4" />} to="/approvals" />
       </div>
@@ -143,13 +143,13 @@ export function Dashboard() {
             </ResponsiveContainer>
           </div>
         </Card>
-        <Card title="Monthly billing trend (INR)">
+        <Card title="Monthly billing trend (USD)">
           <div className="h-56">
             <ResponsiveContainer>
               <LineChart data={trend} margin={{ left: 10, right: 10, top: 10 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                 <XAxis dataKey="month" fontSize={12} />
-                <YAxis fontSize={11} tickFormatter={(v) => money(v, 'INR', true)} width={70} />
+                <YAxis fontSize={11} tickFormatter={(v) => money(v, 'USD', true)} width={70} />
                 <Tooltip formatter={(v: number) => money(v)} />
                 <Line type="monotone" dataKey="amount" stroke={CHART.royal} strokeWidth={2.5} dot={{ r: 3 }} />
               </LineChart>

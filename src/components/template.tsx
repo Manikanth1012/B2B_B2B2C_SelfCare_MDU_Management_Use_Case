@@ -77,13 +77,13 @@ export function StatusTile({ status, tone, children, onClick }: { status: string
 }
 
 /** "USD 10⁰⁰"-style amount with superscript minor units. */
-export function BigAmount({ amount, currency = 'INR' }: { amount: number; currency?: string }) {
+export function BigAmount({ amount, currency = 'USD' }: { amount: number; currency?: string }) {
   const whole = Math.floor(amount);
   const minor = Math.round((amount - whole) * 100);
   return (
     <span className="text-navy">
       <span className="text-2xl">{currency} </span>
-      <span className="text-[40px] font-medium leading-none">{whole.toLocaleString(currency === 'INR' ? 'en-IN' : 'en-SG')}</span>
+      <span className="text-[40px] font-medium leading-none">{whole.toLocaleString('en-US')}</span>
       <sup className="text-xl">{String(minor).padStart(2, '0')}</sup>
     </span>
   );

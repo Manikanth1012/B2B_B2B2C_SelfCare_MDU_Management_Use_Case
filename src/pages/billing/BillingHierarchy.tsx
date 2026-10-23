@@ -74,14 +74,14 @@ export function BillingHierarchy() {
       <div className="grid gap-4 xl:grid-cols-5">
         <Card title="Billing accounts" className="xl:col-span-2">
           <ul className="text-sm">{q.data.map((n) => render(n, 0))}</ul>
-          <p className="mt-3 text-[11px] text-slate-500">Rolled-up balances include child billing accounts; SGD converted to INR at the demo reporting rate.</p>
+          <p className="mt-3 text-[11px] text-slate-500">Rolled-up balances include child billing accounts.</p>
         </Card>
         <div className="space-y-4 xl:col-span-3">
           <Card title={focus.billing.name} actions={<StatusBadge status={focus.billing.status} />}>
             <dl className="grid grid-cols-2 gap-4 md:grid-cols-4">
               <Stat label="Responsible paying party">{focus.billing.payerName}</Stat>
               <Stat label="Own balance">{money(focus.billing.balance, focus.billing.currency)}</Stat>
-              <Stat label="Consolidated balance (INR)">{money(focus.rolledUpBalance)}</Stat>
+              <Stat label="Consolidated balance (USD)">{money(focus.rolledUpBalance)}</Stat>
               <Stat label="Consolidated current charges">{money(focus.rolledUpCharges)}</Stat>
               <Stat label="Payment method">{focus.billing.paymentMethod}</Stat>
               <Stat label="Bill cycle day">{focus.billing.billCycleDay}</Stat>

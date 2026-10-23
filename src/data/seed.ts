@@ -164,7 +164,7 @@ export function buildSeed(): Database {
         portal: true,
         events: { 'Invoice issued': true, 'Payment overdue': true, 'Request status change': true, 'Approval required': true, 'Installation appointment': true, 'Planned network maintenance': false },
       },
-      reportingFx: { SGD: 64.5 },
+      reportingFx: { USD: 1 },
     },
     seq: 0,
   };
@@ -210,13 +210,13 @@ export function buildSeed(): Database {
 
   /* ---------------- Billing accounts ---------------- */
   const B = (id: string, name: string, type: BillingAccount['type'], payer: BillingAccount['payerRef'], parent: string | null, extra: Partial<BillingAccount> = {}, tenantId = 'TEN-6DGE') => {
-    db.billingAccounts.push({ id, tenantId, name, type, payerRef: payer, currency: 'INR', billCycleDay: 1, paymentMethod: 'Bank Transfer', invoiceDelivery: 'Email', paperless: true, status: 'Active', creditLimit: 2500000, ...extra });
+    db.billingAccounts.push({ id, tenantId, name, type, payerRef: payer, currency: 'USD', billCycleDay: 1, paymentMethod: 'Bank Transfer', invoiceDelivery: 'Email', paperless: true, status: 'Active', creditLimit: 2500000, ...extra });
     if (parent) db.billingRelationships.push({ id: `BREL-${id}`, parentBillingId: parent, childBillingId: id, validFrom: '2024-04-01' });
   };
   B('BA-9000', '6D Global Group Billing', 'Aggregator', { kind: 'business', id: 'ACC-1000' }, null, { creditLimit: 10000000 });
   B('BA-9100', 'India Corporate Billing', 'Consolidated', { kind: 'business', id: 'ACC-1100' }, 'BA-9000');
   B('BA-9110', 'Bangalore Office Billing', 'Standard', { kind: 'business', id: 'ACC-1110' }, 'BA-9100', { paymentMethod: 'Direct Debit' });
-  B('BA-9200', 'Singapore Billing', 'Consolidated', { kind: 'business', id: 'ACC-1200' }, 'BA-9000', { currency: 'SGD', creditLimit: 60000 });
+  B('BA-9200', 'Singapore Billing', 'Consolidated', { kind: 'business', id: 'ACC-1200' }, 'BA-9000', { currency: 'USD', creditLimit: 60000 });
   B('BA-9300', 'Shared Services Billing', 'Standard', { kind: 'business', id: 'ACC-1300' }, 'BA-9000');
   B('BA-8100', 'Green Valley Master Billing', 'Property Master', { kind: 'property', id: 'PRP-GV' }, null, { creditLimit: 500000 }, 'TEN-EVG');
   B('BA-8200', 'Sunrise Heights Bulk Contract', 'Property Master', { kind: 'property', id: 'PRP-SH' }, null, { creditLimit: 1500000 }, 'TEN-EVG');
@@ -320,7 +320,7 @@ export function buildSeed(): Database {
               if (p.billingModel === 'Bulk Contract') billingId = p.masterBillingId!;
               else {
                 billingId = nid('BA');
-                db.billingAccounts.push({ id: billingId, tenantId: 'TEN-RES', name: `${cust.name} – Home`, type: 'Resident', payerRef: { kind: 'customer', id: cust.id }, currency: 'INR', billCycleDay: 5, paymentMethod: pick(['UPI', 'Card', 'Direct Debit'] as const), invoiceDelivery: 'Email', paperless: true, status: 'Active', creditLimit: 10000 });
+                db.billingAccounts.push({ id: billingId, tenantId: 'TEN-RES', name: `${cust.name} – Home`, type: 'Resident', payerRef: { kind: 'customer', id: cust.id }, currency: 'USD', billCycleDay: 5, paymentMethod: pick(['ACH', 'Card', 'Direct Debit'] as const), invoiceDelivery: 'Email', paperless: true, status: 'Active', creditLimit: 10000 });
               }
               const act = addDays(occA.validFrom, 10);
               S(
@@ -367,7 +367,7 @@ export function buildSeed(): Database {
   db.customers.push(sneha);
   GV('A-104').occupancy = 'Occupied';
   db.occupancies.push({ id: 'OCC-SNEHA', unitId: 'PRP-GV-A-104', customerId: sneha.id, role: 'Owner', validFrom: '2024-08-20' });
-  db.billingAccounts.push({ id: 'BA-7001', tenantId: 'TEN-RES', name: 'Sneha Kulkarni – Home', type: 'Resident', payerRef: { kind: 'customer', id: sneha.id }, currency: 'INR', billCycleDay: 5, paymentMethod: 'UPI', invoiceDelivery: 'Email', paperless: true, status: 'Active', creditLimit: 10000 });
+  db.billingAccounts.push({ id: 'BA-7001', tenantId: 'TEN-RES', name: 'Sneha Kulkarni – Home', type: 'Resident', payerRef: { kind: 'customer', id: sneha.id }, currency: 'USD', billCycleDay: 5, paymentMethod: 'ACH', invoiceDelivery: 'Email', paperless: true, status: 'Active', creditLimit: 10000 });
   const snehaSrv = S({ offeringId: 'OFF-R02', owner: { kind: 'customer', id: sneha.id }, unitId: 'PRP-GV-A-104', propertyId: 'PRP-GV', location: 'Green Valley Residences, A-104', billingAccountId: 'BA-7001', status: 'Active', activationDate: '2024-09-02', contractEnd: '2026-12-01', mrc: 999, addOns: ['ADD-OTT'], equipment: [{ type: 'GPON ONT + Wi-Fi 6', serial: 'ONT48213377' }] }, 'TEN-EVG');
   // A-101..A-103 vacant + ready so bulk activation has candidates in Tower A.
   for (const n of ['A-103', 'A-105', 'A-201', 'A-202']) {

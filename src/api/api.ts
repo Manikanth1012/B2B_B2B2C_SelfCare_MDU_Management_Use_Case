@@ -248,7 +248,7 @@ export async function createChildAccount(input: CreateChildInput): Promise<{ acc
     if (input.type === 'Billing') {
       const id = `BA-${++d.seq}`;
       const parentBilling = input.billing.parentBillingId;
-      d.billingAccounts.push({ id, tenantId: parent.tenantId, name: input.name.trim(), type: 'Standard', payerRef: { kind: 'business', id: parent.id }, currency: 'INR', billCycleDay: 1, paymentMethod: 'Bank Transfer', invoiceDelivery: 'Email', paperless: true, status: 'Active', creditLimit: 1000000 });
+      d.billingAccounts.push({ id, tenantId: parent.tenantId, name: input.name.trim(), type: 'Standard', payerRef: { kind: 'business', id: parent.id }, currency: 'USD', billCycleDay: 1, paymentMethod: 'Bank Transfer', invoiceDelivery: 'Email', paperless: true, status: 'Active', creditLimit: 1000000 });
       if (parentBilling) d.billingRelationships.push({ id: `BREL-${id}`, parentBillingId: parentBilling, childBillingId: id, validFrom: TODAY });
       audit(d, parent.tenantId, user.name, 'Billing account created', 'billing', id, `Payer ${parent.name}`);
       return { billingId: id, pendingApproval: false };
@@ -276,7 +276,7 @@ export async function createChildAccount(input: CreateChildInput): Promise<{ acc
     let billingId: string | undefined;
     if (input.billing.mode === 'new') {
       billingId = `BA-${++d.seq}`;
-      d.billingAccounts.push({ id: billingId, tenantId: parent.tenantId, name: `${acc.name} Billing`, type: 'Standard', payerRef: { kind: 'business', id }, currency: 'INR', billCycleDay: 1, paymentMethod: 'Bank Transfer', invoiceDelivery: 'Email', paperless: true, status: 'Active', creditLimit: 1000000 });
+      d.billingAccounts.push({ id: billingId, tenantId: parent.tenantId, name: `${acc.name} Billing`, type: 'Standard', payerRef: { kind: 'business', id }, currency: 'USD', billCycleDay: 1, paymentMethod: 'Bank Transfer', invoiceDelivery: 'Email', paperless: true, status: 'Active', creditLimit: 1000000 });
       if (input.billing.parentBillingId) d.billingRelationships.push({ id: `BREL-${billingId}`, parentBillingId: input.billing.parentBillingId, childBillingId: billingId, validFrom: TODAY });
     }
     if (input.admin.mode === 'existing' && input.admin.userId) {
@@ -397,8 +397,8 @@ function balanceOf(db: Database, billingId: string) {
   return db.invoices.filter((i) => i.billingAccountId === billingId && i.status !== 'Paid').reduce((a, i) => a + i.amount, 0);
 }
 
-export function toReporting(amount: number, currency: string) {
-  return currency === 'SGD' ? amount * getDb().settings.reportingFx.SGD : amount;
+export function toReporting(amount: number, _currency: string) {
+  return amount;
 }
 
 export interface BillingRow extends BillingAccount {
@@ -740,7 +740,7 @@ export async function registerProperty(input: RegisterPropertyInput): Promise<st
     let masterBillingId: string | undefined;
     if (input.billingModel !== 'Individual') {
       masterBillingId = `BA-${++d.seq}`;
-      d.billingAccounts.push({ id: masterBillingId, tenantId, name: `${input.name.trim()} ${input.billingModel === 'Bulk Contract' ? 'Bulk Contract' : 'Master Billing'}`, type: 'Property Master', payerRef: { kind: 'property', id }, currency: 'INR', billCycleDay: 1, paymentMethod: 'Bank Transfer', invoiceDelivery: 'Email', paperless: true, status: 'Active', creditLimit: 500000 });
+      d.billingAccounts.push({ id: masterBillingId, tenantId, name: `${input.name.trim()} ${input.billingModel === 'Bulk Contract' ? 'Bulk Contract' : 'Master Billing'}`, type: 'Property Master', payerRef: { kind: 'property', id }, currency: 'USD', billCycleDay: 1, paymentMethod: 'Bank Transfer', invoiceDelivery: 'Email', paperless: true, status: 'Active', creditLimit: 500000 });
     }
     d.properties.push({ id, tenantId, name: input.name.trim(), type: input.type, managementOrg: input.managementOrg, managerUserId: user.roleId === 'MDU_PM' ? user.id : 'U-200', address: input.address, city: input.city, geo: input.lat && input.lng ? { lat: input.lat, lng: input.lng } : undefined, contactPhone: input.contactPhone, contactEmail: input.contactEmail, technology: input.technology, readiness: input.readiness, capacityPorts: input.capacityPorts, equipment: input.equipment, plannedActivation: input.plannedActivation, billingModel: input.billingModel, masterBillingId, status: 'Onboarding', createdAt: TODAY });
     input.towers.forEach((t, ti) => {
@@ -996,7 +996,7 @@ export async function submitNewConnection(input: NewConnectionInput) {
     if (input.billing.mode === 'new-resident') {
       billingId = `BA-${++d.seq}`;
       const cust = d.customers.find((c) => c.id === ownerId)!;
-      d.billingAccounts.push({ id: billingId, tenantId: 'TEN-RES', name: `${cust.name} – Home`, type: 'Resident', payerRef: { kind: 'customer', id: cust.id }, currency: 'INR', billCycleDay: 5, paymentMethod: 'UPI', invoiceDelivery: 'Email', paperless: true, status: 'Active', creditLimit: 10000 });
+      d.billingAccounts.push({ id: billingId, tenantId: 'TEN-RES', name: `${cust.name} – Home`, type: 'Resident', payerRef: { kind: 'customer', id: cust.id }, currency: 'USD', billCycleDay: 5, paymentMethod: 'ACH', invoiceDelivery: 'Email', paperless: true, status: 'Active', creditLimit: 10000 });
     } else billingId = input.billing.billingId;
     const srvId = `SRV-${++d.seq}`;
     const addOnMrc = (offering.addOns ?? []).filter((a) => input.addOns.includes(a.id)).reduce((a, x) => a + x.mrc, 0);
@@ -1126,7 +1126,7 @@ export async function submitBulk(input: BulkInput) {
       if (input.billing === 'resident' && occ) {
         const cust = d.customers.find((c) => c.id === occ.customerId)!;
         billingId = d.billingAccounts.find((b) => b.payerRef.kind === 'customer' && b.payerRef.id === cust.id)?.id ?? `BA-${++d.seq}`;
-        if (!d.billingAccounts.some((b) => b.id === billingId)) d.billingAccounts.push({ id: billingId, tenantId: 'TEN-RES', name: `${cust.name} – Home`, type: 'Resident', payerRef: { kind: 'customer', id: cust.id }, currency: 'INR', billCycleDay: 5, paymentMethod: 'UPI', invoiceDelivery: 'Email', paperless: true, status: 'Active', creditLimit: 10000 });
+        if (!d.billingAccounts.some((b) => b.id === billingId)) d.billingAccounts.push({ id: billingId, tenantId: 'TEN-RES', name: `${cust.name} – Home`, type: 'Resident', payerRef: { kind: 'customer', id: cust.id }, currency: 'USD', billCycleDay: 5, paymentMethod: 'ACH', invoiceDelivery: 'Email', paperless: true, status: 'Active', creditLimit: 10000 });
         owner = { kind: 'customer', id: cust.id };
       }
       const o = d.offerings.find((x) => x.id === e.offeringId)!;
@@ -1136,7 +1136,7 @@ export async function submitBulk(input: BulkInput) {
     preview.ineligible.forEach((x) => items.push({ unitId: x.unitId, status: 'Failed', note: x.reason }));
     d.orders.unshift({ id: orderId, kind: 'Bulk Activation', requestId: reqId, items, billingAccountId: input.billing === 'property' ? p.masterBillingId : undefined, appointment: `From ${input.appointmentFrom}`, createdAt: nowIso() });
     d.requests.unshift({ id: reqId, tenantId: p.tenantId, kind: 'Service Request', category: 'Bulk Activation', title: `Bulk activation – ${preview.eligible.length} units at ${p.name}`, description: `${preview.eligible.length} eligible, ${preview.ineligible.length} rejected at validation. Billing: ${input.billing === 'property' ? 'property account' : 'individual residents'}.`, propertyId: p.id, priority: 'Medium', status: needsApproval ? 'Validating' : 'Approved', assignedTeam: 'FTTH Field Engineering', createdBy: user.id, createdAt: TODAY, slaDue: addDays(TODAY, 14), timeline: [{ at: nowIso(), status: 'Submitted', by: user.name, note: `Bulk order ${orderId}` }, { at: nowIso(), status: needsApproval ? 'Validating' : 'Approved', by: 'System', note: needsApproval ? 'Awaiting operator approval for bulk activation' : 'Auto-approved' }], attachments: [], orderId });
-    if (needsApproval) d.approvals.unshift({ id: `APR-${++d.seq}`, tenantId: p.tenantId, type: 'Bulk Service Activation', summary: `Activate ${preview.eligible.length} units at ${p.name} (MRC ₹${preview.mrcTotal.toLocaleString('en-IN')})`, target: { kind: 'order', id: orderId }, payload: { orderId, requestId: reqId }, requestedBy: user.id, requestedAt: nowIso(), status: 'Pending' });
+    if (needsApproval) d.approvals.unshift({ id: `APR-${++d.seq}`, tenantId: p.tenantId, type: 'Bulk Service Activation', summary: `Activate ${preview.eligible.length} units at ${p.name} (MRC $${preview.mrcTotal.toLocaleString('en-US')})`, target: { kind: 'order', id: orderId }, payload: { orderId, requestId: reqId }, requestedBy: user.id, requestedAt: nowIso(), status: 'Pending' });
     audit(d, p.tenantId, user.name, 'Bulk activation submitted', 'property', p.id, `${orderId}: ${preview.eligible.length} eligible / ${preview.ineligible.length} rejected`);
     return { requestId: reqId, orderId, pendingApproval: needsApproval };
   });

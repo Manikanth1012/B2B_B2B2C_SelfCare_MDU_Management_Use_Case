@@ -32,7 +32,7 @@ export function BillingOverview() {
   const pays = payments.filter((p) => acc === 'ALL' || p.billingAccountId === acc);
   const sel = billing.find((b) => b.id === acc);
   const cur = (i: { amount: number; currency: string }) => toReporting(i.amount, i.currency);
-  const ccy = sel?.currency ?? 'INR';
+  const ccy = sel?.currency ?? 'USD';
   const amt = (i: { amount: number; currency: string }) => (sel ? i.amount : cur(i));
   const latestPeriod = invoices.map((i) => i.period).sort().pop() ?? '2026-10';
   const latest = invoices.filter((i) => i.period === latestPeriod);
@@ -72,7 +72,7 @@ export function BillingOverview() {
             ],
           ]}
         />
-        {!sel && billing.some((b) => b.currency === 'SGD') && <p className="mt-2 text-[11px] text-ink-400">Totals across accounts in INR; SGD converted at the demo reporting rate.</p>}
+        {!sel && billing.length > 1 && <p className="mt-2 text-[11px] text-ink-400">Totals consolidated across all billing accounts in USD.</p>}
       </BlushPanel>
 
       <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
