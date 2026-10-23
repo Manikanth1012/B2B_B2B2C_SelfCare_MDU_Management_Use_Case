@@ -31,7 +31,7 @@ export function Preferences() {
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label="Payment method">
             <select disabled={!editable} className={inputCls} value={f.paymentMethod} onChange={(e) => setF({ ...f, paymentMethod: e.target.value as BillingAccount['paymentMethod'] })}>
-              {['Bank Transfer', 'Direct Debit', 'Card', 'UPI'].map((m) => (
+              {['Bank Transfer', 'Direct Debit', 'Card', 'ACH'].map((m) => (
                 <option key={m}>{m}</option>
               ))}
             </select>

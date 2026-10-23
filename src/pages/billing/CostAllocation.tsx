@@ -33,7 +33,7 @@ export function CostAllocation() {
         subtitle="Allocate charges by department, branch, property common area or unit (from invoice cost centres)."
         crumbs={[{ label: 'Billing', to: '/billing' }, { label: 'Cost allocation' }]}
         actions={
-          <Button variant="secondary" onClick={() => downloadText(`cost-allocation-${period}.csv`, toCsv([['Allocation', 'Amount (INR)', 'Share %'], ...rows.map((r) => [r.name, r.amount, pct(r.amount, sum)])]))}>
+          <Button variant="secondary" onClick={() => downloadText(`cost-allocation-${period}.csv`, toCsv([['Allocation', 'Amount (USD)', 'Share %'], ...rows.map((r) => [r.name, r.amount, pct(r.amount, sum)])]))}>
             <Download className="h-4 w-4" /> Export
           </Button>
         }
@@ -48,7 +48,7 @@ export function CostAllocation() {
             <ResponsiveContainer>
               <BarChart data={top} layout="vertical" margin={{ left: 30 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#EDEDED" />
-                <XAxis type="number" fontSize={11} tickFormatter={(v) => money(v, 'INR', true)} />
+                <XAxis type="number" fontSize={11} tickFormatter={(v) => money(v, 'USD', true)} />
                 <YAxis type="category" dataKey="name" width={150} fontSize={11} />
                 <Tooltip formatter={(v: number) => money(v)} />
                 <Bar dataKey="amount" fill={CHART.royal} radius={[0, 4, 4, 0]} />

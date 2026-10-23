@@ -136,7 +136,7 @@ export function Invoices() {
 }
 
 function PayModal({ invoice, onClose }: { invoice: Inv; onClose: () => void }) {
-  const [method, setMethod] = useState<BillingAccount['paymentMethod']>('UPI');
+  const [method, setMethod] = useState<BillingAccount['paymentMethod']>('ACH');
   const { run, busy } = useAction();
   return (
     <Modal
@@ -158,7 +158,7 @@ function PayModal({ invoice, onClose }: { invoice: Inv; onClose: () => void }) {
         {invoice.id} · {invoice.billingName} · due {date(invoice.dueDate)}
       </p>
       <Field label="Payment method">
-        <Select label="Payment method" value={method} onChange={(v) => setMethod(v as typeof method)} options={['UPI', 'Card', 'Bank Transfer', 'Direct Debit']} />
+        <Select label="Payment method" value={method} onChange={(v) => setMethod(v as typeof method)} options={['ACH', 'Card', 'Bank Transfer', 'Direct Debit']} />
       </Field>
       <div className="mt-3">
         <SimNote>No payment gateway is called and no card data is collected. The invoice is marked paid in the mock billing system.</SimNote>

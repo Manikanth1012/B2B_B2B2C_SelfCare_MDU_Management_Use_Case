@@ -56,7 +56,7 @@ export function AccountsList() {
         <Kpi label="Total business accounts" value={accounts.length} />
         <Kpi label="Active child accounts" value={accounts.filter((a) => a.type !== 'Root' && a.status === 'Active').length} />
         <Kpi label="Total active services" value={accounts.reduce((n, a) => n + a.activeServices, 0)} tone="orange" to="/services" />
-        <Kpi label="Outstanding balance" value={money(outstanding, 'INR', true)} to="/billing" />
+        <Kpi label="Outstanding balance" value={money(outstanding, 'USD', true)} to="/billing" />
         <Kpi label="Pending requests" value={pending} to="/requests" />
       </div>
       <Card>

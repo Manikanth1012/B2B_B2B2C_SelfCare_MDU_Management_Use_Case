@@ -1,9 +1,11 @@
-export function money(n: number, currency = 'INR', compact = false) {
-  if (compact && Math.abs(n) >= 100000) {
-    if (currency === 'INR') return `₹${(n / 100000).toFixed(n >= 1e7 ? 0 : 2)} L`;
-    return `${currency} ${(n / 1000).toFixed(1)}k`;
+export function money(n: number, currency = 'USD', compact = false) {
+  if (compact && Math.abs(n) >= 1_000_000) {
+    return `$${(n / 1_000_000).toFixed(1)}M`;
   }
-  return new Intl.NumberFormat(currency === 'INR' ? 'en-IN' : 'en-SG', { style: 'currency', currency, currencyDisplay: currency === 'INR' ? 'symbol' : 'code', maximumFractionDigits: 0 }).format(n);
+  if (compact && Math.abs(n) >= 1_000) {
+    return `$${(n / 1_000).toFixed(1)}k`;
+  }
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency, maximumFractionDigits: 0 }).format(n);
 }
 
 export function date(iso?: string) {

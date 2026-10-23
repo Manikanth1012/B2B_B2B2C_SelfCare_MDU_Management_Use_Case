@@ -11,7 +11,7 @@
 
 export type ID = string;
 export type ISODate = string;
-export type Currency = 'INR' | 'SGD';
+export type Currency = 'USD';
 
 export type TenantId = ID;
 
@@ -76,7 +76,7 @@ export interface BillingAccount {
   payerRef: { kind: 'business' | 'property' | 'customer'; id: ID };
   currency: Currency;
   billCycleDay: number;
-  paymentMethod: 'Bank Transfer' | 'Direct Debit' | 'Card' | 'UPI';
+  paymentMethod: 'Bank Transfer' | 'Direct Debit' | 'Card' | 'ACH';
   invoiceDelivery: 'Email' | 'Portal' | 'Post';
   paperless: boolean;
   status: 'Active' | 'Suspended' | 'Closed';
@@ -461,7 +461,7 @@ export interface Settings {
   approvalForBulkActivation: boolean;
   approvalForBillingChange: boolean;
   notifications: { email: boolean; sms: boolean; portal: boolean; events: Record<string, boolean> };
-  reportingFx: { SGD: number };
+  reportingFx: { USD: number };
 }
 
 export interface Database {
