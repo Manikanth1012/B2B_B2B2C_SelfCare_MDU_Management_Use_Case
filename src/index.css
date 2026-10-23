@@ -1,0 +1,17 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html { -webkit-text-size-adjust: 100%; }
+body { font-family: Montserrat, system-ui, -apple-system, 'Segoe UI', sans-serif; color: #3F4458; background: #fff; font-size: 14px; letter-spacing: 0; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+/* Hatched fill for "network not ready" so the state survives monochrome output. */
+.hatch { background-image: repeating-linear-gradient(135deg, rgba(185,28,28,.18) 0 4px, transparent 4px 8px); }
+
+/* Decorative template background: teal ring (left), coral ring (top right), dot grid. */
+.deco-ring-teal { border-radius: 9999px; border: 105px solid transparent; background: linear-gradient(135deg, #8FC6D8, #B8E5CF) border-box; -webkit-mask: linear-gradient(#000 0 0) padding-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; }
+.deco-ring-coral { border-radius: 9999px; border: 105px solid transparent; background: linear-gradient(135deg, #E8505B, #F07A5A) border-box; -webkit-mask: linear-gradient(#000 0 0) padding-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; }
+.deco-dots { background-image: radial-gradient(circle, #E8505B 16px, transparent 17px); background-size: 86px 86px; }
+.brand-text { background: linear-gradient(90deg, #E31E43, #5C4374); -webkit-background-clip: text; background-clip: text; color: transparent; }
