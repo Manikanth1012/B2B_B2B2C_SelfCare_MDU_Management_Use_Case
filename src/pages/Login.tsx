@@ -9,7 +9,13 @@ export function Login() {
   return (
     <div className="mx-auto max-w-4xl py-6">
       <h1 className="text-[32px] font-medium text-navy">Sign in</h1>
-      <p className="mb-6 text-ink-600">You have signed out. Choose a demo persona to continue — each sees only its authorised accounts, properties and units.</p>
+      <p className="mb-6 text-ink-600">
+        You have signed out. Choose a demo persona to continue — each sees only its authorised accounts, properties and units. New here?{' '}
+        <button className="font-bold text-royal hover:underline" onClick={() => nav('/guide')}>
+          Open the demo guide
+        </button>
+        .
+      </p>
       <div className="grid gap-4 sm:grid-cols-2">
         {users.map((u) => (
           <button

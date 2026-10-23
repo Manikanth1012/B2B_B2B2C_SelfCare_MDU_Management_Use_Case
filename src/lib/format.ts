@@ -3,7 +3,7 @@ export function money(n: number, currency = 'INR', compact = false) {
     if (currency === 'INR') return `₹${(n / 100000).toFixed(n >= 1e7 ? 0 : 2)} L`;
     return `${currency} ${(n / 1000).toFixed(1)}k`;
   }
-  return new Intl.NumberFormat(currency === 'INR' ? 'en-IN' : 'en-SG', { style: 'currency', currency, maximumFractionDigits: 0 }).format(n);
+  return new Intl.NumberFormat(currency === 'INR' ? 'en-IN' : 'en-SG', { style: 'currency', currency, currencyDisplay: currency === 'INR' ? 'symbol' : 'code', maximumFractionDigits: 0 }).format(n);
 }
 
 export function date(iso?: string) {

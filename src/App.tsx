@@ -40,6 +40,7 @@ import { Approvals } from './pages/users/Approvals';
 import { Reports } from './pages/Reports';
 import { AccountSettings, Profile } from './pages/settings/Profile';
 import { Login } from './pages/Login';
+import { Guide } from './pages/Guide';
 import { NotificationsSettings } from './pages/settings/NotificationsSettings';
 import { AuditHistory } from './pages/settings/AuditHistory';
 
@@ -88,6 +89,7 @@ export function App() {
             <Route path="/settings" element={<Profile />} />
             <Route path="/settings/account" element={<AccountSettings />} />
             <Route path="/login" element={<Login />} />
+            <Route path="/guide" element={<Guide />} />
             <Route path="/settings/notifications" element={<NotificationsSettings />} />
             <Route path="/settings/audit" element={<AuditHistory />} />
             <Route path="*" element={<Navigate to="/" replace />} />

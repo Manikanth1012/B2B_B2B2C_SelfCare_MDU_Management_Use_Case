@@ -83,6 +83,7 @@ const NAV: NavGroup[] = [
       { label: 'Roles & Permissions', to: '/users/roles' },
       { label: 'Reports & Analytics', to: '/reports', perm: 'reports.read' },
       { label: 'Audit History', to: '/settings/audit' },
+      { label: 'Read me · Demo guide', to: '/guide' },
     ],
   },
 ];
@@ -103,7 +104,7 @@ function isGroupActive(g: NavGroup, path: string) {
   if (g.to === '/') return path === '/';
   const prefixes = [g.to, ...(g.items ?? []).map((i) => i.to.split('?')[0])];
   if (g.label === 'Orders') return path === '/orders' || path.startsWith('/services/orders');
-  if (g.label === 'Admin') return ['/approvals', '/users', '/reports', '/settings/audit'].some((p) => path.startsWith(p));
+  if (g.label === 'Admin') return ['/approvals', '/users', '/reports', '/settings/audit', '/guide'].some((p) => path.startsWith(p));
   if (g.label === 'Services') return path.startsWith('/services') && !path.startsWith('/services/orders');
   return prefixes.some((p) => p !== '/' && path.startsWith(p));
 }
@@ -233,6 +234,9 @@ function UserMenu() {
             <div className="mt-1 flex gap-1 border-t border-line-100 p-1 pt-2">
               <button onClick={() => (setOpen(false), nav('/settings'))} className="flex-1 rounded-lg px-3 py-2 text-xs font-bold text-royal-700 hover:bg-royal-50">
                 Settings
+              </button>
+              <button onClick={() => (setOpen(false), nav('/guide'))} className="flex-1 rounded-lg px-3 py-2 text-xs font-bold text-royal-700 hover:bg-royal-50">
+                Read me
               </button>
               <button onClick={() => (setOpen(false), nav('/login'))} className="flex-1 rounded-lg px-3 py-2 text-xs font-bold text-crimson hover:bg-crimson-50">
                 Logout
