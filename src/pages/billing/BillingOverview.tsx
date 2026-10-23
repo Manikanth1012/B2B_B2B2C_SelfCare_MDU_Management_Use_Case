@@ -1,14 +1,14 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { Download } from 'lucide-react';
 import { can, listBillingAccounts, listInvoices, listPayments, toReporting } from '../../api/api';
 import { useApi } from '../../lib/hooks';
 import { date, money } from '../../lib/format';
-import { Card, DataTable, ErrorState, Kpi, LinkButton, Loading, PageHeader, Select, StatusBadge, Tabs, Tag } from '../../components/ui';
+import { Card, ErrorState, Kpi, LinkButton, Loading, PageHeader, Select, Tabs, Tag } from '../../components/ui';
 import { BlushPanel, InfoGrid } from '../../components/template';
 import { CHART } from '../Dashboard';
-import { downloadInvoice } from './Invoices';
+import { InvoicesPanel } from './Invoices';
+import { PaymentsPanel } from './Payments';
 
 async function load() {
   const [billing, invoices, payments] = await Promise.all([listBillingAccounts({ includeResidents: true }), listInvoices(), listPayments()]);
@@ -22,7 +22,9 @@ function monthEnd(period: string) {
 
 export function BillingOverview() {
   const q = useApi(load);
-  const [tab, setTab] = useState('invoices');
+  const [params, setParams] = useSearchParams();
+  const tab = params.get('tab') ?? 'invoices';
+  const setTab = (t: string) => setParams({ tab: t }, { replace: true });
   const [acc, setAcc] = useState('ALL');
   const nav = useNavigate();
   if (q.error) return <ErrorState error={q.error} />;
@@ -57,7 +59,7 @@ export function BillingOverview() {
           billing.length > 1 && <Select label="Billing account" value={acc} onChange={setAcc} options={[{ value: 'ALL', label: `All billing accounts (${billing.length})` }, ...billing.map((b) => ({ value: b.id, label: `${b.name} (${b.id})` }))]} className="w-80" />
         }
       />
-      <BlushPanel title="Current Bill" actions={can('billing.pay') && outstanding > 0 && <LinkButton to="/billing/invoices?status=Overdue" variant="primary">Pay now</LinkButton>}>
+      <BlushPanel title="Current Bill" actions={can('billing.pay') && outstanding > 0 && <LinkButton to="/billing?tab=invoices&status=Overdue" variant="primary">Pay now</LinkButton>}>
         <InfoGrid
           rows={[
             [
@@ -76,9 +78,9 @@ export function BillingOverview() {
       </BlushPanel>
 
       <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Kpi label="Overdue amount" value={money(overdue, ccy, true)} tone={overdue ? 'red' : 'green'} to="/billing/invoices?status=Overdue" />
-        <Kpi label="Open invoices" value={invoices.filter((i) => i.status === 'Open').length} tone="orange" to="/billing/invoices?status=Open" />
-        <Kpi label="Payments (6 months)" value={pays.length} tone="green" to="/billing/payments" />
+        <Kpi label="Overdue amount" value={money(overdue, ccy, true)} tone={overdue ? 'red' : 'green'} to="/billing?tab=invoices&status=Overdue" />
+        <Kpi label="Open invoices" value={invoices.filter((i) => i.status === 'Open').length} tone="orange" to="/billing?tab=invoices&status=Open" />
+        <Kpi label="Payments (6 months)" value={pays.length} tone="green" to="/billing?tab=payments" />
         <Kpi label="Active billing accounts" value={billing.filter((b) => b.status === 'Active').length} to="/billing/hierarchy" />
       </div>
 
@@ -91,51 +93,8 @@ export function BillingOverview() {
           { id: 'trend', label: 'Trend & Accounts' },
         ]}
       />
-      {tab === 'invoices' && (
-        <DataTable
-          rows={invoices}
-          rowKey={(i) => i.id}
-          onRowClick={() => nav('/billing/invoices')}
-          pageSize={8}
-          mobileTitle={(i) => i.id}
-          empty="No Data Found"
-          columns={[
-            { key: 'id', header: 'Invoice ID', render: (i) => <span className="font-mono text-xs">{i.id}</span>, mobileHidden: true },
-            { key: 'd', header: 'Invoice Date', render: (i) => date(i.issueDate), sort: (i) => i.issueDate },
-            { key: 'b', header: 'Billing Account', render: (i) => <span className="text-xs">{i.billingName}</span> },
-            { key: 'c', header: 'Invoice Charge', render: (i) => money(i.amount, i.currency), className: 'text-right' },
-            { key: 'o', header: 'Outstanding', render: (i) => money(i.status === 'Paid' ? 0 : i.amount, i.currency), className: 'text-right' },
-            { key: 'due', header: 'Due Date', render: (i) => date(i.dueDate) },
-            { key: 'f', header: 'From Date', render: (i) => date(i.period + '-01') },
-            { key: 't', header: 'To Date', render: (i) => date(monthEnd(i.period)) },
-            { key: 's', header: 'Payment Status', render: (i) => <StatusBadge status={i.status === 'Paid' ? 'Paid' : i.status === 'Overdue' ? 'Overdue' : 'Open'} /> },
-            {
-              key: 'dl',
-              header: 'Download',
-              render: (i) => (
-                <button aria-label={`Download ${i.id}`} onClick={(e) => (e.stopPropagation(), downloadInvoice(i))} className="text-ink-700 hover:text-crimson">
-                  <Download className="h-5 w-5" />
-                </button>
-              ),
-            },
-          ]}
-        />
-      )}
-      {tab === 'payments' && (
-        <DataTable
-          rows={pays}
-          rowKey={(p) => p.id}
-          pageSize={8}
-          mobileTitle={(p) => money(p.amount, p.currency)}
-          empty="No Data Found"
-          columns={[
-            { key: 'd', header: 'Payment Date', render: (p) => date(p.date), sort: (p) => p.date },
-            { key: 'r', header: 'Receipt Number', render: (p) => <span className="font-mono text-xs">{p.reference}</span> },
-            { key: 'a', header: 'Amount Paid', render: (p) => money(p.amount, p.currency), className: 'text-right' },
-            { key: 'c', header: 'Comment', render: (p) => <span className="text-xs">{p.invoiceId} · {p.method} · simulated</span> },
-          ]}
-        />
-      )}
+      {tab === 'invoices' && <InvoicesPanel key={acc + (params.get('status') ?? '')} accountId={acc} />}
+      {tab === 'payments' && <PaymentsPanel accountId={acc} />}
       {tab === 'trend' && (
         <div className="grid gap-6 xl:grid-cols-5">
           <Card title={`Invoice trend by status (${ccy})`} className="xl:col-span-3">

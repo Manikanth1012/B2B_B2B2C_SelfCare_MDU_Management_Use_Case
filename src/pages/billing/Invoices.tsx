@@ -5,7 +5,7 @@ import { can, listInvoices, payInvoice } from '../../api/api';
 import type { BillingAccount, Invoice } from '../../data/types';
 import { useApi } from '../../lib/hooks';
 import { date, downloadText, money, toCsv } from '../../lib/format';
-import { Button, Card, DataTable, ErrorState, Field, Loading, Modal, PageHeader, SearchBox, Select, SimNote, Stat, StatusBadge, useAction } from '../../components/ui';
+import { Button, DataTable, ErrorState, Field, Loading, Modal, SearchBox, Select, SimNote, Stat, StatusBadge, useAction } from '../../components/ui';
 
 type Inv = Invoice & { billingName: string; currency: string };
 
@@ -19,59 +19,63 @@ export function downloadInvoice(i: Inv) {
   );
 }
 
-export function Invoices() {
+function monthEnd(period: string) {
+  const [y, m] = period.split('-').map(Number);
+  return new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);
+}
+
+/**
+ * Invoice history with filters, detail, download and pay. Rendered as the
+ * "Invoice History" tab of Bills & Payments (the only place invoices are listed).
+ */
+export function InvoicesPanel({ accountId = 'ALL' }: { accountId?: string }) {
   const q = useApi(listInvoices);
   const [params] = useSearchParams();
   const [status, setStatus] = useState(params.get('status') ?? 'All');
-  const [ba, setBa] = useState('All');
   const [search, setSearch] = useState('');
   const [open, setOpen] = useState<Inv | null>(null);
   const [paying, setPaying] = useState<Inv | null>(null);
   if (q.error) return <ErrorState error={q.error} />;
   if (!q.data) return <Loading />;
-  const accounts = [...new Set(q.data.map((i) => i.billingName))].sort();
-  const rows = q.data.filter((i) => (status === 'All' || i.status === status) && (ba === 'All' || i.billingName === ba) && (!search || `${i.id} ${i.period}`.toLowerCase().includes(search.toLowerCase())));
+  const rows = q.data.filter((i) => (status === 'All' || i.status === status) && (accountId === 'ALL' || i.billingAccountId === accountId) && (!search || `${i.id} ${i.period}`.toLowerCase().includes(search.toLowerCase())));
   return (
     <div>
-      <PageHeader
-        title="Invoices"
-        crumbs={[{ label: 'Billing', to: '/billing' }, { label: 'Invoices' }]}
-        actions={
-          <Button variant="secondary" onClick={() => downloadText('invoices.csv', toCsv([['Invoice', 'Billing account', 'Period', 'Issued', 'Due', 'Amount', 'Currency', 'Status'], ...rows.map((i) => [i.id, i.billingName, i.period, i.issueDate, i.dueDate, i.amount, i.currency, i.status])]))}>
-            <Download className="h-4 w-4" /> Export CSV
-          </Button>
-        }
-      />
-      <Card>
-        <div className="mb-3 grid gap-2 sm:grid-cols-[1fr_240px_160px]">
+      <div className="mb-4 flex flex-wrap items-center justify-end gap-2">
+        <div className="w-full sm:w-72">
           <SearchBox value={search} onChange={setSearch} placeholder="Invoice number or period (YYYY-MM)" />
-          <Select label="Billing account" value={ba} onChange={setBa} options={['All', ...accounts]} />
-          <Select label="Status" value={status} onChange={setStatus} options={['All', 'Open', 'Overdue', 'Paid']} />
         </div>
+        <Select label="Status" value={status} onChange={setStatus} options={['All', 'Open', 'Overdue', 'Paid']} className="w-36" />
+        <Button variant="secondary" onClick={() => downloadText('invoices.csv', toCsv([['Invoice', 'Billing account', 'Period', 'Issued', 'Due', 'Amount', 'Currency', 'Status'], ...rows.map((i) => [i.id, i.billingName, i.period, i.issueDate, i.dueDate, i.amount, i.currency, i.status])]))}>
+          <Download className="h-4 w-4" /> Export CSV
+        </Button>
+      </div>
         <DataTable
           rows={rows}
           rowKey={(i) => i.id}
           onRowClick={setOpen}
           pageSize={12}
           mobileTitle={(i) => `${i.id} · ${money(i.amount, i.currency)}`}
+          empty="No Data Found"
           columns={[
-            { key: 'id', header: 'Invoice', render: (i) => <span className="font-mono text-xs">{i.id}</span>, sort: (i) => i.id, mobileHidden: true },
-            { key: 'b', header: 'Billing account', render: (i) => i.billingName, sort: (i) => i.billingName },
-            { key: 'p', header: 'Period', render: (i) => i.period, sort: (i) => i.period },
-            { key: 'd', header: 'Due date', render: (i) => date(i.dueDate), sort: (i) => i.dueDate },
-            { key: 'a', header: 'Amount', render: (i) => money(i.amount, i.currency), sort: (i) => i.amount, className: 'text-right' },
-            { key: 's', header: 'Status', render: (i) => <StatusBadge status={i.status} />, sort: (i) => i.status },
+            { key: 'id', header: 'Invoice ID', render: (i) => <span className="font-mono text-xs">{i.id}</span>, sort: (i) => i.id, mobileHidden: true },
+            { key: 'd', header: 'Invoice Date', render: (i) => date(i.issueDate), sort: (i) => i.issueDate },
+            { key: 'b', header: 'Billing Account', render: (i) => <span className="text-xs">{i.billingName}</span>, sort: (i) => i.billingName },
+            { key: 'c', header: 'Invoice Charge', render: (i) => money(i.amount, i.currency), sort: (i) => i.amount, className: 'text-right' },
+            { key: 'o', header: 'Outstanding', render: (i) => money(i.status === 'Paid' ? 0 : i.amount, i.currency), className: 'text-right' },
+            { key: 'due', header: 'Due Date', render: (i) => date(i.dueDate), sort: (i) => i.dueDate },
+            { key: 'f', header: 'Bill Period', render: (i) => `${date(i.period + '-01')} – ${date(monthEnd(i.period))}` },
+            { key: 's', header: 'Payment Status', render: (i) => <StatusBadge status={i.status} />, sort: (i) => i.status },
             {
               key: 'x',
-              header: '',
+              header: 'Download / Pay',
               mobileHidden: true,
               render: (i) => (
-                <span className="flex gap-2" onClick={(e) => e.stopPropagation()}>
-                  <button className="text-xs font-semibold text-royal hover:underline" onClick={() => downloadInvoice(i)}>
-                    Download
+                <span className="flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
+                  <button aria-label={`Download ${i.id}`} className="text-ink-700 hover:text-crimson" onClick={() => downloadInvoice(i)}>
+                    <Download className="h-5 w-5" />
                   </button>
                   {i.status !== 'Paid' && can('billing.pay') && (
-                    <button className="text-xs font-semibold text-royal hover:underline" onClick={() => setPaying(i)}>
+                    <button className="text-xs font-bold text-royal hover:underline" onClick={() => setPaying(i)}>
                       Pay
                     </button>
                   )}
@@ -80,7 +84,6 @@ export function Invoices() {
             },
           ]}
         />
-      </Card>
       {open && (
         <Modal
           open

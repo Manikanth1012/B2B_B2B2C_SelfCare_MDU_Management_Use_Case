@@ -26,9 +26,7 @@ import { OrderTracking } from './pages/services/OrderTracking';
 import { Orders } from './pages/services/Orders';
 import { BillingOverview } from './pages/billing/BillingOverview';
 import { BillingHierarchy } from './pages/billing/BillingHierarchy';
-import { Invoices } from './pages/billing/Invoices';
 import { CostAllocation } from './pages/billing/CostAllocation';
-import { Payments } from './pages/billing/Payments';
 import { Preferences } from './pages/billing/Preferences';
 import { RequestsList } from './pages/requests/RequestsList';
 import { RequestDetail } from './pages/requests/RequestDetail';
@@ -74,9 +72,9 @@ export function App() {
             <Route path="/services/:id" element={<ServiceDetail />} />
             <Route path="/billing" element={<BillingOverview />} />
             <Route path="/billing/hierarchy" element={<BillingHierarchy />} />
-            <Route path="/billing/invoices" element={<Invoices />} />
+            <Route path="/billing/invoices" element={<ToTab tab="invoices" />} />
             <Route path="/billing/allocation" element={<CostAllocation />} />
-            <Route path="/billing/payments" element={<Payments />} />
+            <Route path="/billing/payments" element={<ToTab tab="payments" />} />
             <Route path="/billing/preferences" element={<Preferences />} />
             <Route path="/requests" element={<RequestsList />} />
             <Route path="/requests/new" element={<Fresh><NewRequest /></Fresh>} />
@@ -111,3 +109,12 @@ function Fresh({ children }: { children: ReactNode }) {
   const loc = useLocation();
   return <Fragment key={loc.search}>{children}</Fragment>;
 }
+
+/** Old Invoices / Payments URLs now open the matching tab of Bills & Payments (single source). */
+function ToTab({ tab }: { tab: string }) {
+  const loc = useLocation();
+  const q = new URLSearchParams(loc.search);
+  q.set('tab', tab);
+  return <Navigate to={`/billing?${q.toString()}`} replace />;
+}
+

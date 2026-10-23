@@ -257,7 +257,11 @@ ok('H: no MDU', (await text()).includes('Not available for your role') || (await
 // Journey I: resident isolation
 await as('U-400');
 await go('/');
-ok('I: own unit', (await text()).includes('A-104'));
+const rd = await text();
+ok('I: dashboard = account view', rd.includes('My Services') && rd.includes('Mobile') && !rd.includes('Building notices'));
+await go('/home');
+const rh = await text();
+ok('I: My Home = unit view (distinct)', rh.includes('A-104') && rh.includes('Identity & consent') && !rh.includes('My Services'));
 await go('/mdu/PRP-GV');
 ok('I: property denied', (await text()).includes('Not available for your role'));
 await go('/services');

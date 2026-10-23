@@ -55,11 +55,9 @@ const NAV: NavGroup[] = [
   {
     label: 'Bills & Payments', to: '/billing', perm: 'billing.read',
     items: [
-      { label: 'Billing Overview', to: '/billing' },
+      { label: 'Bills & Payments', to: '/billing' },
       { label: 'Billing Hierarchy', to: '/billing/hierarchy', hideFor: ['RESIDENT'] },
-      { label: 'Invoices', to: '/billing/invoices' },
       { label: 'Cost Allocation', to: '/billing/allocation', hideFor: ['RESIDENT'] },
-      { label: 'Payments', to: '/billing/payments' },
       { label: 'Billing Preferences', to: '/billing/preferences' },
     ],
   },
@@ -82,7 +80,6 @@ const NAV: NavGroup[] = [
       { label: 'Portal Users', to: '/users', perm: 'user.manage' },
       { label: 'Roles & Permissions', to: '/users/roles' },
       { label: 'Reports & Analytics', to: '/reports', perm: 'reports.read' },
-      { label: 'Audit History', to: '/settings/audit' },
       { label: 'Read me · Demo guide', to: '/guide' },
     ],
   },
@@ -104,7 +101,7 @@ function isGroupActive(g: NavGroup, path: string) {
   if (g.to === '/') return path === '/';
   const prefixes = [g.to, ...(g.items ?? []).map((i) => i.to.split('?')[0])];
   if (g.label === 'Orders') return path === '/orders' || path.startsWith('/services/orders');
-  if (g.label === 'Admin') return ['/approvals', '/users', '/reports', '/settings/audit', '/guide'].some((p) => path.startsWith(p));
+  if (g.label === 'Admin') return ['/approvals', '/users', '/reports', '/guide'].some((p) => path.startsWith(p));
   if (g.label === 'Services') return path.startsWith('/services') && !path.startsWith('/services/orders');
   return prefixes.some((p) => p !== '/' && path.startsWith(p));
 }
@@ -277,7 +274,7 @@ function ApprovalBell() {
 /* ---------------- Ask AARYA (6D's AI assistant) — scoped, deterministic demo ---------------- */
 
 const AARYA_INTENTS: { match: RegExp; answer: string; to: string; label: string }[] = [
-  { match: /overdue|unpaid|due|outstanding/i, answer: 'Here are invoices that are overdue in the billing accounts you can see.', to: '/billing/invoices?status=Overdue', label: 'Open overdue invoices' },
+  { match: /overdue|unpaid|due|outstanding/i, answer: 'Here are invoices that are overdue in the billing accounts you can see.', to: '/billing?tab=invoices&status=Overdue', label: 'Open overdue invoices' },
   { match: /ready|vacant|eligible|unconnected/i, answer: 'Units marked “Ready for Service” have network in place but no subscription — the best candidates for activation.', to: '/mdu/units', label: 'Open unit grid' },
   { match: /bulk/i, answer: 'Bulk activation checks availability per unit, rejects ineligible ones, and sends the rest for approval.', to: '/services/bulk', label: 'Start bulk activation' },
   { match: /hierarch|subsidiar|child|parent/i, answer: 'The hierarchy explorer shows organisational ownership, with billing accounts as separate dashed links.', to: '/accounts/hierarchy', label: 'Open hierarchy' },
@@ -354,7 +351,7 @@ const BOTTOM: { to: string; label: string; icon: ReactNode; perm?: Permission; r
   { to: '/mdu/units', label: 'Units', icon: <Building2 className="h-5 w-5" />, perm: 'property.read', hideFor: ['RESIDENT'] },
   { to: '/home', label: 'My Home', icon: <Home className="h-5 w-5" />, roles: ['RESIDENT'] },
   { to: '/services', label: 'Services', icon: <Wifi className="h-5 w-5" />, roles: ['RESIDENT'] },
-  { to: '/billing/invoices', label: 'Bills', icon: <CreditCard className="h-5 w-5" />, perm: 'billing.read' },
+  { to: '/billing', label: 'Bills', icon: <CreditCard className="h-5 w-5" />, perm: 'billing.read' },
   { to: '/orders', label: 'Orders', icon: <ShoppingBag className="h-5 w-5" />, roles: ['MDU_PM'] },
   { to: '/requests', label: 'Tickets', icon: <LifeBuoy className="h-5 w-5" /> },
 ];

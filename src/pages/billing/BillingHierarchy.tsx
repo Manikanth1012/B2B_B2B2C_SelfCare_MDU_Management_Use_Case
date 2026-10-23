@@ -117,7 +117,7 @@ export function BillingHierarchy() {
             <DataTable
               rows={invoices}
               rowKey={(i) => i.id}
-              onRowClick={() => nav('/billing/invoices')}
+              onRowClick={() => nav('/billing?tab=invoices')}
               pageSize={8}
               mobileTitle={(i) => i.id}
               columns={[

@@ -6,9 +6,13 @@ import { Card, DataTable, ErrorState, Kpi, Loading, PageHeader, SearchBox, Selec
 import { UnitDrawer } from './UnitDrawer';
 import { KycBadge, OccupantOnboardingModal } from './OccupantOnboarding';
 
-export function Occupancy() {
+/**
+ * Occupancy list (assign / update / KYC). Used as the cross-property page and,
+ * with `propertyId`, as the Residents tab of Property Details — one implementation.
+ */
+export function Occupancy({ propertyId, embedded }: { propertyId?: string; embedded?: boolean } = {}) {
   const props = useApi(listProperties);
-  const [pid, setPid] = useState('');
+  const [pid, setPid] = useState(propertyId ?? '');
   const units = useApi(() => listUnits(pid || undefined), [pid]);
   const [search, setSearch] = useState('');
   const [occ, setOcc] = useState('All');
@@ -20,7 +24,7 @@ export function Occupancy() {
   const rows = all.filter((u) => (occ === 'All' || u.occupancy === occ) && (!search || `${u.number} ${u.propertyName} ${u.occupant?.name ?? ''}`.toLowerCase().includes(search.toLowerCase())));
   return (
     <div>
-      <PageHeader title="Occupancy Management" subtitle="Assign, update and end-date occupants. Occupancy changes never alter active services or billing responsibility." crumbs={[{ label: 'MDU Portfolio', to: '/mdu' }, { label: 'Occupancy' }]} />
+      {!embedded && <PageHeader title="Occupancy Management" subtitle="Assign, update and end-date occupants. Occupancy changes never alter active services or billing responsibility." crumbs={[{ label: 'MDU Portfolio', to: '/mdu' }, { label: 'Occupancy' }]} />}
       <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <Kpi label="Units" value={all.length} />
         <Kpi label="Occupied" value={all.filter((u) => u.occupancy === 'Occupied').length} />
@@ -29,9 +33,9 @@ export function Occupancy() {
         <Kpi label="Occupants without verified KYC" value={all.filter((u) => u.occupant && u.occupant.kyc.status !== 'Verified').length} tone="red" hint="Resident-billed orders blocked" />
       </div>
       <Card>
-        <div className="mb-3 grid gap-2 sm:grid-cols-[1fr_220px_160px]">
+        <div className={embedded ? 'mb-3 grid gap-2 sm:grid-cols-[1fr_160px]' : 'mb-3 grid gap-2 sm:grid-cols-[1fr_220px_160px]'}>
           <SearchBox value={search} onChange={setSearch} placeholder="Search unit, property or occupant" />
-          <Select label="Property" value={pid} onChange={setPid} options={[{ value: '', label: 'All properties' }, ...props.data.map((p) => ({ value: p.id, label: p.name }))]} />
+          {!embedded && <Select label="Property" value={pid} onChange={setPid} options={[{ value: '', label: 'All properties' }, ...props.data.map((p) => ({ value: p.id, label: p.name }))]} />}
           <Select label="Occupancy" value={occ} onChange={setOcc} options={['All', 'Occupied', 'Vacant', 'Unknown']} />
         </div>
         <DataTable

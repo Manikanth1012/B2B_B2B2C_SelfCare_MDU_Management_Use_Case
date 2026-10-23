@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { KycBadge } from '../mdu/OccupantOnboarding';
 import { ChevronRight, User } from 'lucide-react';
-import { can, currentUser, getProfile, getSettings, listBillingAccounts, updateAccount, updateMyContact, updateSettings } from '../../api/api';
+import { can, currentUser, getMyHome, getProfile, getSettings, listBillingAccounts, updateAccount, updateMyContact, updateSettings } from '../../api/api';
 import type { Settings } from '../../data/types';
 import { useApi } from '../../lib/hooks';
 import { Button, ErrorState, Field, inputCls, Loading, Modal, SimNote, Tabs, useAction } from '../../components/ui';
 import { EditRow, SettingsShell } from './SettingsShell';
 
-function ProfileHead({ name, id, email, phone }: { name: string; id: string; email: string; phone: string }) {
+function ProfileHead({ name, id, email, phone, idLabel = 'Customer Number' }: { name: string; id: string; email: string; phone: string; idLabel?: string }) {
   return (
     <div className="mb-8 grid items-center gap-6 sm:grid-cols-[auto_1fr_1fr_1fr]">
       <span className="flex h-24 w-24 items-center justify-center rounded-full bg-royal-50 text-royal-700">
@@ -15,7 +16,7 @@ function ProfileHead({ name, id, email, phone }: { name: string; id: string; ema
       </span>
       <div className="min-w-0">
         <p className="truncate text-2xl font-semibold uppercase text-navy">{name}</p>
-        <p className="text-sm text-ink-600">Customer Number</p>
+        <p className="text-sm text-ink-600">{idLabel}</p>
         <p className="text-xl text-navy">{id}</p>
       </div>
       <div className="min-w-0">
@@ -70,7 +71,7 @@ export function Profile() {
   return (
     <SettingsShell>
       <Tabs active="general" onChange={() => {}} tabs={[{ id: 'general', label: 'General Settings' }]} />
-      <ProfileHead name={u.name} id={u.id} email={u.email} phone={u.phone} />
+      <ProfileHead name={u.name} id={u.id} idLabel="Portal user ID" email={u.email} phone={u.phone} />
       <div className="mb-10 rounded-card border border-line-100">
         <EditRow label="Display name" value={u.name} action="Change Username" onAction={() => setEdit({ label: 'Display name', value: u.name, save: (v) => updateMyContact({ name: v }) })} />
         <EditRow label="Password" value="••••••••••" action="Change Password" onAction={() => setPw(true)} />
@@ -122,9 +123,16 @@ export function AccountSettings() {
           ...(policyEditable ? [{ id: 'policy', label: 'Approval Policy' }] : []),
         ]}
       />
-      {tab === 'basic' && (
+      {tab === 'basic' && user.roleId === 'RESIDENT' && <ResidentAccount />}
+      {tab === 'basic' && user.roleId !== 'RESIDENT' && !org && (
+        <div className="rounded-card border border-line-100 p-6 text-sm text-ink-700">
+          <p className="text-lg font-semibold text-navy">{q.data.tenant.name}</p>
+          <p className="mt-1">This login belongs to the operator, not a customer, so there is no customer account or billing information. Your personal details are under Customer Settings.</p>
+        </div>
+      )}
+      {tab === 'basic' && org && (
         <>
-          <ProfileHead name={org?.name ?? q.data.tenant.name} id={org?.id ?? user.tenantId} email={primary?.email ?? user.email} phone={primary?.phone ?? user.phone} />
+          <ProfileHead idLabel="Account Number" name={org?.name ?? q.data.tenant.name} id={org?.id ?? user.tenantId} email={primary?.email ?? user.email} phone={primary?.phone ?? user.phone} />
           <h3 className="mb-3 text-lg font-semibold text-navy">Billing Info</h3>
           <div className="rounded-card border border-line-100">
             <EditRow
@@ -176,5 +184,30 @@ function ApprovalPolicy() {
       </Button>
       <p className="mt-2 text-[11px] text-ink-400">Signed in as {currentUser().name}.</p>
     </div>
+  );
+}
+
+/** Resident account: the customer record and its billing accounts (personal login details stay in Customer Settings). */
+function ResidentAccount() {
+  const home = useApi(getMyHome);
+  const bills = useApi(() => listBillingAccounts({ includeResidents: true }));
+  const nav = useNavigate();
+  if (home.error) return <ErrorState error={home.error} />;
+  if (!home.data || !bills.data) return <Loading />;
+  const { customer, unit, property } = home.data;
+  return (
+    <>
+      <ProfileHead name={customer.name} id={customer.id} email={customer.email} phone={customer.phone} />
+      <div className="mb-8 flex flex-wrap items-center gap-3 text-sm text-ink-700">
+        <KycBadge kyc={customer.kyc} /> {[customer.kyc.method, customer.kyc.maskedRef].filter(Boolean).join(' · ')} · customer since {customer.createdAt}
+      </div>
+      <h3 className="mb-3 text-lg font-semibold text-navy">Billing Info</h3>
+      <div className="rounded-card border border-line-100">
+        <EditRow label="Service / billing address" value={`${unit.number}, ${unit.building}, ${property.name}, ${property.city}`.toUpperCase()} />
+        {bills.data.map((b) => (
+          <EditRow key={b.id} label={`${b.name} (${b.id})`} value={`${b.paymentMethod} · bill day ${b.billCycleDay} · ${b.invoiceDelivery}${b.paperless ? ' · paperless' : ''}`} action="Edit" onAction={() => nav('/billing/preferences')} />
+        ))}
+      </div>
+    </>
   );
 }

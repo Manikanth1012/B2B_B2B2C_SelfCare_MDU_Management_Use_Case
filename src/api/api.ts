@@ -666,6 +666,30 @@ export async function getUnit(id: string): Promise<UnitView & { propertyName: st
   return { ...v, propertyName: p.name, property: p };
 }
 
+/** Resident "My Home": the unit, building notices, appointments and the resident's own identity record. */
+export async function getMyHome() {
+  await latency();
+  const { db, user, scope } = ctx();
+  const unitId = user.scopes.find((g) => g.kind === 'unit')?.ref;
+  if (!unitId || !scope.customerId) throw new AuthError('No unit is linked to your account.');
+  const u = db.units.find((x) => x.id === unitId)!;
+  const p = db.properties.find((x) => x.id === u.propertyId)!;
+  const view = unitView(db, scope, u);
+  view.services = view.services.filter((sv) => sv.owner.id === scope.customerId);
+  const cust = db.customers.find((c) => c.id === scope.customerId)!;
+  const closed = ['Completed', 'Rejected', 'Cancelled', 'Failed'];
+  return {
+    unit: view,
+    property: { name: p.name, address: p.address, city: p.city, managementOrg: p.managementOrg, contactPhone: p.contactPhone, contactEmail: p.contactEmail, technology: p.technology },
+    customer: { id: cust.id, name: cust.name, email: cust.email, phone: cust.phone, createdAt: cust.createdAt, kyc: cust.kyc, consents: cust.consents },
+    occupancy: db.occupancies.filter((o) => o.unitId === unitId && o.customerId === cust.id),
+    // Property-wide incidents are shown as building notices: title and status only.
+    notices: db.requests.filter((r) => r.propertyId === p.id && !r.unitId && ['Network Issue', 'Property Connectivity Issue'].includes(r.category) && !closed.includes(r.status)).map((r) => ({ id: r.id, title: r.title, status: r.status, createdAt: r.createdAt, slaDue: r.slaDue })),
+    appointments: db.appointments.filter((a) => a.unitId === unitId),
+    unitRequests: db.requests.filter((r) => r.unitId === unitId && r.createdBy === user.id),
+  };
+}
+
 export async function listUnits(propertyId?: string): Promise<(UnitView & { propertyName: string })[]> {
   await latency();
   const { db, user, scope } = ctx();

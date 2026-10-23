@@ -5,7 +5,7 @@ import { can, currentUser, getProfile, listAccounts, listApprovals, listBillingA
 import { useApi } from '../lib/hooks';
 import { date, money, pct } from '../lib/format';
 import { Card, Kpi, LinkButton, Loading, Stat, StatusBadge } from '../components/ui';
-import { MyHome } from './mdu/MyHome';
+import { ResidentDashboard } from './ResidentDashboard';
 import { BigAmount, HeroCarousel, QuickLinks, StatusTile, Welcome, type QuickLink, type Slide } from '../components/template';
 
 export const CHART = { royal: '#1F5FC4', orange: '#FF8A00', teal: '#00B4D8', navy: '#1B2140', green: '#10B981', purple: '#8B5CF6', grey: '#94A3B8', red: '#DC2626', amber: '#F59E0B' };
@@ -30,7 +30,7 @@ export function Dashboard() {
   const user = currentUser();
   const q = useApi(loadDashboard, [user.id]);
   const nav = useNavigate();
-  if (user.roleId === 'RESIDENT') return <MyHome />;
+  if (user.roleId === 'RESIDENT') return <ResidentDashboard />;
   if (!q.data) return <Loading />;
   const { accounts, services, properties, requests, billing, invoices, approvals, profile } = q.data;
 
@@ -98,7 +98,7 @@ export function Dashboard() {
               <p className="mt-4 text-lg font-semibold text-navy">{nextDue ? `Due By ${date(nextDue.dueDate)}` : 'Nothing due'}</p>
               <div className="mt-4 flex justify-end">
                 {can('billing.pay') && outstanding > 0 ? (
-                  <LinkButton to="/billing/invoices?status=Overdue" variant="primary">
+                  <LinkButton to="/billing?tab=invoices&status=Overdue" variant="primary">
                     Pay now
                   </LinkButton>
                 ) : (
@@ -118,11 +118,14 @@ export function Dashboard() {
 
       <h2 className="mb-4 text-[22px] font-medium text-navy">At a glance</h2>
       <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        {can('account.read') && accounts.length > 0 && <Kpi label="Total accounts" value={accounts.length} hint={`${accounts.filter((a) => a.type !== 'Root').length} child accounts`} icon={<Network className="h-4 w-4" />} to="/accounts" />}
-        <Kpi label="Total services" value={services.length} tone="orange" hint={`${services.filter((s) => s.status === 'Active').length} active`} icon={<Wifi className="h-4 w-4" />} to="/services" />
-        {properties.length > 0 && <Kpi label="MDU properties" value={properties.length} hint={`${units} units`} icon={<Building2 className="h-4 w-4" />} to="/mdu" />}
-        {properties.length > 0 && <Kpi label="Connected units" value={`${pct(connected, units)}%`} tone="green" hint={`${connected} of ${units}`} to="/reports" />}
-        <Kpi label="Outstanding" value={money(outstanding, 'USD', true)} tone={overdue ? 'red' : 'default'} hint={overdue ? `${money(overdue, 'USD', true)} overdue` : 'Nothing overdue'} icon={<CreditCard className="h-4 w-4" />} to="/billing" />
+        {/* Only figures not already shown in the My Services / Billing tiles above. */}
+        <Kpi label="Pending installations" value={services.filter((s) => s.status === 'Pending Installation').length} tone="orange" icon={<Wifi className="h-4 w-4" />} to="/services?status=Pending%20Installation" />
+        {isMdu ? (
+          <Kpi label="Ready units, no service" value={properties.reduce((a, p) => a + p.ready, 0)} tone="green" hint="Activation opportunities" icon={<Building2 className="h-4 w-4" />} to="/services/bulk" />
+        ) : (
+          <Kpi label="Contracts ending ≤ 90 days" value={services.filter((s) => s.contractEnd && s.contractEnd >= '2026-10-23' && s.contractEnd <= '2027-01-21').length} tone="green" hint="Renewal candidates" icon={<Network className="h-4 w-4" />} to="/services" />
+        )}
+        <Kpi label="Suspended services" value={services.filter((s) => s.status === 'Suspended').length} tone="red" icon={<CreditCard className="h-4 w-4" />} to="/services?status=Suspended" />
         <Kpi label="Open requests" value={openReq.length} hint={`${openReq.filter((r) => r.kind === 'Incident').length} incidents`} icon={<AlertTriangle className="h-4 w-4" />} to="/requests" />
         <Kpi label="Awaiting my approval" value={pendingApprovals.length} tone={pendingApprovals.length ? 'orange' : 'default'} icon={<ClipboardCheck className="h-4 w-4" />} to="/approvals" />
       </div>

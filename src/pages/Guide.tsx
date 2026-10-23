@@ -55,7 +55,7 @@ const JOURNEYS: { id: string; title: string; persona: string; steps: { text: str
   },
   {
     id: 'I', title: 'Resident sees only their own unit', persona: 'U-400',
-    steps: [{ text: 'My Home shows unit A-104, plan, bills and tickets', to: '/home' }, { text: 'Opening the property page is refused', to: '/mdu/PRP-GV' }],
+    steps: [{ text: 'Dashboard: My Services (Broadband + Mobile), amount due, offers', to: '/' }, { text: 'My Home: unit A-104, equipment, building notices, visits, identity & consents', to: '/home' }, { text: 'Opening the property page is refused', to: '/mdu/PRP-GV' }],
   },
 ];
 

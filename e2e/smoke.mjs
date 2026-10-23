@@ -18,6 +18,30 @@ for (const u of users) {
     if (txt.includes('unexpected error')) errors.push(`${u} ${r} :: boundary: ${txt.slice(txt.indexOf('unexpected error'), txt.indexOf('unexpected error') + 160)}`);
   }
 }
+// Duplicate-page guard: no two main destinations may render (nearly) the same content for a persona.
+const DEST = ['/', '/home', '/accounts', '/accounts/hierarchy', '/accounts/contacts', '/mdu', '/mdu/occupancy', '/services', '/services/changes', '/orders', '/billing', '/billing/hierarchy', '/billing/allocation', '/billing/preferences', '/requests', '/requests/appointments', '/users', '/users/roles', '/approvals', '/reports', '/settings', '/settings/account', '/settings/notifications', '/settings/audit', '/guide'];
+const words = (t) => new Set(t.toLowerCase().split(/[^a-z0-9₹$.-]+/).filter((w) => w.length > 2));
+const jaccard = (a, b) => {
+  let i = 0;
+  a.forEach((w) => b.has(w) && i++);
+  return i / (a.size + b.size - i || 1);
+};
+for (const u of users) {
+  await page.evaluate((id) => localStorage.setItem('6d-mdu-selfcare-user', id), u);
+  const seen = [];
+  for (const r of DEST) {
+    await page.goto(BASE + '#' + r);
+    await page.waitForTimeout(650);
+    const t = await page.locator('#main').innerText();
+    if (t.includes('Not available for your role') || t.length < 200) continue;
+    const w = words(t);
+    for (const [r2, w2] of seen) {
+      const sim = jaccard(w, w2);
+      if (sim > 0.85) errors.push(`${u} duplicate pages ${r2} ≈ ${r} (similarity ${sim.toFixed(2)})`);
+    }
+    seen.push([r, w]);
+  }
+}
 console.log('ERRORS', errors.length);
 console.log([...new Set(errors)].slice(0, 40).join('\n'));
 await browser.close();

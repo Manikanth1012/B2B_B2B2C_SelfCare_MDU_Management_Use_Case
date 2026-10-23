@@ -1,33 +1,32 @@
 import { useState } from 'react';
-import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { Download } from 'lucide-react';
-import { can, listAccounts, listInvoices, listProperties, listRequests, listServices, toReporting } from '../api/api';
+import { can, listAccounts, listInvoices, listProperties, listRequests, listServices, listUnits, toReporting } from '../api/api';
 import { useApi } from '../lib/hooks';
 import { downloadText, money, pct, toCsv } from '../lib/format';
-import { Button, Card, ErrorState, Kpi, Loading, PageHeader, Select, Tabs } from '../components/ui';
+import { Button, Card, ErrorState, Kpi, Loading, PageHeader, Tabs } from '../components/ui';
 import { CHART } from './Dashboard';
 
 async function load() {
-  const [accounts, services, properties, invoices, requests] = await Promise.all([
+  const [accounts, services, properties, invoices, requests, units] = await Promise.all([
     can('account.read') ? listAccounts().catch(() => []) : Promise.resolve([]),
     listServices().catch(() => []),
     can('property.read') ? listProperties().catch(() => []) : Promise.resolve([]),
     listInvoices().catch(() => []),
     listRequests(),
+    can('property.read') ? listUnits().catch(() => []) : Promise.resolve([]),
   ]);
-  return { accounts, services, properties, invoices, requests };
+  return { accounts, services, properties, invoices, requests, units };
 }
 
 const PIE = [CHART.royal, CHART.orange, CHART.green, CHART.purple, CHART.teal, CHART.red, CHART.grey];
-const count = <T,>(xs: T[], k: (x: T) => string) => Object.entries(xs.reduce<Record<string, number>>((m, x) => ((m[k(x)] = (m[k(x)] ?? 0) + 1), m), {})).map(([name, value]) => ({ name, value }));
 
 export function Reports() {
   const q = useApi(load);
   const [tabSel, setTab] = useState('accounts');
-  const [cat, setCat] = useState('All');
   if (q.error) return <ErrorState error={q.error} />;
   if (!q.data) return <Loading />;
-  const { accounts, services, properties, invoices, requests } = q.data;
+  const { accounts, services, properties, invoices, requests, units } = q.data;
   const tabs = [
     ...(accounts.length ? [{ id: 'accounts', label: 'Account Analytics' }] : []),
     ...(properties.length ? [{ id: 'mdu', label: 'MDU Occupancy & Penetration' }] : []),
@@ -35,7 +34,49 @@ export function Reports() {
     { id: 'ops', label: 'Requests & Installations' },
   ];
   const tab = tabs.some((t) => t.id === tabSel) ? tabSel : tabs[0].id;
-  const svc = services.filter((s) => cat === 'All' || s.category === cat);
+  const bizSvc = services.filter((s) => s.businessAccountId && s.status !== 'Terminated');
+  const mixCats = [...new Set(bizSvc.map((s) => s.category))];
+  const mix = {
+    cats: mixCats,
+    rows: accounts
+      .filter((a) => bizSvc.some((s) => s.businessAccountId === a.id))
+      .map((a) => ({ name: a.name, ...Object.fromEntries(mixCats.map((c) => [c, bizSvc.filter((s) => s.businessAccountId === a.id && s.category === c).length])) })),
+  };
+  const mrcByAccount = accounts
+    .map((a) => ({ name: a.name, mrc: Math.round(bizSvc.filter((s) => s.businessAccountId === a.id && s.status === 'Active').reduce((x, s) => x + toReporting(s.mrc, s.currency), 0)) }))
+    .filter((r) => r.mrc > 0)
+    .sort((x, y) => y.mrc - x.mrc);
+  const quarter = (d: string) => `${d.slice(0, 4)} Q${Math.floor((Number(d.slice(5, 7)) - 1) / 3) + 1}`;
+  const quarters = ['2026 Q4', '2027 Q1', '2027 Q2', '2027 Q3', '2027 Q4', '2028 Q1'];
+  const renewals = quarters.map((qq) => {
+    const due = bizSvc.filter((s) => s.contractEnd && quarter(s.contractEnd) === qq);
+    return { q: qq, count: due.length, mrc: Math.round(due.reduce((x, s) => x + toReporting(s.mrc, s.currency), 0)) };
+  });
+  const towers = Object.values(
+    units.reduce<Record<string, { name: string; occ: number; conn: number; ready: number; total: number }>>((m, u) => {
+      const k = `${u.propertyName.split(' ')[0]} ${u.building.replace('Tower ', 'T-')}`;
+      m[k] ??= { name: k, occ: 0, conn: 0, ready: 0, total: 0 };
+      m[k].total++;
+      if (u.occupancy === 'Occupied') m[k].occ++;
+      if (u.connectivity === 'Connected') m[k].conn++;
+      if (u.networkReadiness === 'Ready') m[k].ready++;
+      return m;
+    }, {}),
+  ).map((t) => ({ name: t.name, penetration: pct(t.conn, t.occ), readiness: pct(t.ready, t.total) }));
+  const closedSt = ['Completed', 'Rejected', 'Cancelled', 'Failed'];
+  const sla = [...new Set(requests.map((r) => r.category))].map((c) => {
+    const rs = requests.filter((r) => r.category === c);
+    return { name: c, Closed: rs.filter((r) => closedSt.includes(r.status)).length, 'Open within SLA': rs.filter((r) => !closedSt.includes(r.status) && r.slaDue >= '2026-10-23').length, 'Open, SLA breached': rs.filter((r) => !closedSt.includes(r.status) && r.slaDue < '2026-10-23').length };
+  });
+  const backlog = Object.entries(
+    services
+      .filter((s) => s.status === 'Pending Installation')
+      .reduce<Record<string, number>>((m, s) => {
+        const k = s.unitId ? s.location.split(',')[0] : s.customerName;
+        m[k] = (m[k] ?? 0) + 1;
+        return m;
+      }, {}),
+  ).map(([name, pending]) => ({ name, pending }));
   const months = ['2026-05', '2026-06', '2026-07', '2026-08', '2026-09', '2026-10'];
   const revenue = months.map((m) => {
     const row: Record<string, string | number> = { month: new Date(m + '-01').toLocaleString('en', { month: 'short' }) };
@@ -55,45 +96,50 @@ export function Reports() {
     <div>
       <PageHeader title="Reports & Analytics" subtitle="All figures are computed only from data within your authorised scope." crumbs={[{ label: 'Admin' }, { label: 'Reports' }]} actions={<Button variant="secondary" onClick={exportCsv}><Download className="h-4 w-4" /> Export CSV</Button>} />
       <Tabs active={tab} onChange={setTab} tabs={tabs} />
+      {/* Reports go deeper than the Dashboard: no chart here repeats a Dashboard chart. */}
       {tab === 'accounts' && (
         <div className="grid gap-6 xl:grid-cols-2">
-          <Card title="Business accounts by type">
-            <div className="h-64">
+          <Card title="Service mix by account">
+            <div className="h-72">
               <ResponsiveContainer>
-                <BarChart data={count(accounts, (a) => a.type)}>
+                <BarChart data={mix.rows} margin={{ bottom: 10 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#ECECEF" />
-                  <XAxis dataKey="name" fontSize={12} />
+                  <XAxis dataKey="name" fontSize={10} interval={0} angle={-15} textAnchor="end" height={50} />
                   <YAxis allowDecimals={false} fontSize={11} />
                   <Tooltip />
-                  <Bar dataKey="value" name="Accounts" fill={CHART.royal} radius={[6, 6, 0, 0]} />
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                  {mix.cats.map((c, i) => (
+                    <Bar key={c} dataKey={c} stackId="a" fill={PIE[i % PIE.length]} />
+                  ))}
                 </BarChart>
               </ResponsiveContainer>
             </div>
           </Card>
-          <Card title="Services by status" actions={<Select label="Service type" value={cat} onChange={setCat} options={['All', 'FTTH Broadband', 'Leased Line', 'SD-WAN', 'Voice', 'IoT', 'Managed Services']} className="w-48" />}>
-            <div className="h-64">
+          <Card title="Monthly recurring revenue by account">
+            <div className="h-72">
               <ResponsiveContainer>
-                <PieChart>
-                  <Pie data={count(svc, (s) => s.status)} dataKey="value" nameKey="name" innerRadius={55} outerRadius={90}>
-                    {count(svc, (s) => s.status).map((_, i) => (
-                      <Cell key={i} fill={PIE[i % PIE.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                  <Legend wrapperStyle={{ fontSize: 12 }} />
-                </PieChart>
+                <BarChart data={mrcByAccount} layout="vertical" margin={{ left: 30 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#ECECEF" />
+                  <XAxis type="number" fontSize={11} tickFormatter={(v) => money(v, 'USD', true)} />
+                  <YAxis type="category" dataKey="name" width={150} fontSize={11} />
+                  <Tooltip formatter={(v: number) => money(v)} />
+                  <Bar dataKey="mrc" name="Active MRC" fill={CHART.orange} radius={[0, 6, 6, 0]} />
+                </BarChart>
               </ResponsiveContainer>
             </div>
           </Card>
-          <Card title="Active services per account" className="xl:col-span-2">
-            <div className="h-72">
+          <Card title="Contract renewals by quarter (business services)" className="xl:col-span-2">
+            <div className="h-64">
               <ResponsiveContainer>
-                <BarChart data={accounts.filter((a) => a.activeServices).map((a) => ({ name: a.name, services: a.activeServices }))}>
+                <BarChart data={renewals}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#ECECEF" />
-                  <XAxis dataKey="name" fontSize={11} />
-                  <YAxis allowDecimals={false} fontSize={11} />
-                  <Tooltip />
-                  <Bar dataKey="services" fill={CHART.orange} radius={[6, 6, 0, 0]} />
+                  <XAxis dataKey="q" fontSize={12} />
+                  <YAxis yAxisId="l" allowDecimals={false} fontSize={11} />
+                  <YAxis yAxisId="r" orientation="right" fontSize={11} tickFormatter={(v) => money(v, 'USD', true)} />
+                  <Tooltip formatter={(v: number, n: string) => (n === 'MRC up for renewal' ? money(v) : v)} />
+                  <Legend wrapperStyle={{ fontSize: 12 }} />
+                  <Bar yAxisId="l" dataKey="count" name="Contracts ending" fill={CHART.royal} radius={[6, 6, 0, 0]} />
+                  <Bar yAxisId="r" dataKey="mrc" name="MRC up for renewal" fill={CHART.teal} radius={[6, 6, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -103,27 +149,26 @@ export function Reports() {
       {tab === 'mdu' && (
         <>
           <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <Kpi label="Units" value={properties.reduce((a, p) => a + p.totalUnits, 0)} />
+            <Kpi label="Occupied, not connected" value={units.filter((u) => u.occupancy === 'Occupied' && u.connectivity !== 'Connected').length} hint="Upsell opportunities" />
             <Kpi label="Occupancy" value={`${pct(properties.reduce((a, p) => a + p.occupied, 0), properties.reduce((a, p) => a + p.totalUnits, 0))}%`} tone="orange" />
             <Kpi label="Penetration (of all units)" value={`${pct(properties.reduce((a, p) => a + p.connected, 0), properties.reduce((a, p) => a + p.totalUnits, 0))}%`} tone="green" />
             <Kpi label="Penetration (of occupied)" value={`${pct(properties.reduce((a, p) => a + p.connected, 0), properties.reduce((a, p) => a + p.occupied, 0))}%`} tone="green" />
           </div>
-          <Card title="Connectivity vs occupancy by property">
+          <Card title="Penetration by building (connected ÷ occupied)">
             <div className="h-80">
               <ResponsiveContainer>
-                <BarChart data={properties.map((p) => ({ name: p.name, Occupied: p.occupied, Connected: p.connected, Pending: p.pending, 'Network not ready': p.notReady }))}>
+                <BarChart data={towers}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#ECECEF" />
                   <XAxis dataKey="name" fontSize={11} />
-                  <YAxis fontSize={11} />
-                  <Tooltip />
+                  <YAxis fontSize={11} unit="%" domain={[0, 100]} />
+                  <Tooltip formatter={(v: number) => `${v}%`} />
                   <Legend wrapperStyle={{ fontSize: 12 }} />
-                  <Bar dataKey="Occupied" fill={CHART.navy} />
-                  <Bar dataKey="Connected" fill={CHART.green} />
-                  <Bar dataKey="Pending" fill={CHART.amber} />
-                  <Bar dataKey="Network not ready" fill={CHART.red} />
+                  <Bar dataKey="penetration" name="Connected of occupied" fill={CHART.green} radius={[6, 6, 0, 0]} />
+                  <Bar dataKey="readiness" name="Network-ready units" fill={CHART.royal} radius={[6, 6, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
+            <p className="mt-2 text-xs text-ink-400">Low penetration with high readiness = sales opportunity; low readiness = network build needed.</p>
           </Card>
         </>
       )}
@@ -148,30 +193,32 @@ export function Reports() {
       )}
       {tab === 'ops' && (
         <div className="grid gap-6 xl:grid-cols-2">
-          <Card title="Open requests by category">
+          <Card title="SLA performance by request category">
             <div className="h-72">
               <ResponsiveContainer>
-                <BarChart data={count(requests.filter((r) => !['Completed', 'Rejected', 'Cancelled', 'Failed'].includes(r.status)), (r) => r.category)} layout="vertical" margin={{ left: 40 }}>
+                <BarChart data={sla} layout="vertical" margin={{ left: 40 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#ECECEF" />
                   <XAxis type="number" allowDecimals={false} fontSize={11} />
                   <YAxis type="category" dataKey="name" width={170} fontSize={11} />
                   <Tooltip />
-                  <Bar dataKey="value" name="Open" fill={CHART.red} radius={[0, 6, 6, 0]} />
+                  <Legend wrapperStyle={{ fontSize: 12 }} />
+                  <Bar dataKey="Closed" stackId="a" fill={CHART.green} />
+                  <Bar dataKey="Open within SLA" stackId="a" fill={CHART.royal} />
+                  <Bar dataKey="Open, SLA breached" stackId="a" fill={CHART.red} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
           </Card>
-          <Card title="Active vs pending installations">
+          <Card title="Installation backlog by site">
             <div className="h-72">
               <ResponsiveContainer>
-                <PieChart>
-                  <Pie data={[{ name: 'Active', value: services.filter((s) => s.status === 'Active').length }, { name: 'Pending installation', value: services.filter((s) => s.status === 'Pending Installation').length }]} dataKey="value" nameKey="name" innerRadius={55} outerRadius={95}>
-                    <Cell fill={CHART.green} />
-                    <Cell fill={CHART.amber} />
-                  </Pie>
+                <BarChart data={backlog}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#ECECEF" />
+                  <XAxis dataKey="name" fontSize={11} />
+                  <YAxis allowDecimals={false} fontSize={11} />
                   <Tooltip />
-                  <Legend wrapperStyle={{ fontSize: 12 }} />
-                </PieChart>
+                  <Bar dataKey="pending" name="Pending installations" fill={CHART.amber} radius={[6, 6, 0, 0]} />
+                </BarChart>
               </ResponsiveContainer>
             </div>
           </Card>

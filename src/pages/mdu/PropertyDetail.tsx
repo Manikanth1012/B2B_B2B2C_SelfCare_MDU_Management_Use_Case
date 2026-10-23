@@ -1,20 +1,23 @@
 import { useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
 import { FileText, LifeBuoy, Plus, Upload, Zap } from 'lucide-react';
-import { can, getProperty, listUnits } from '../../api/api';
+import { can, getProperty, listProperties } from '../../api/api';
 import { useApi } from '../../lib/hooks';
 import { date, dateTime, money, pct } from '../../lib/format';
-import { Card, DataTable, ErrorState, Kpi, LinkButton, Loading, PageHeader, ProgressBar, SearchBox, Stat, StatusBadge, Tabs, Tag, useToast } from '../../components/ui';
+import { Card, DataTable, ErrorState, Kpi, LinkButton, Loading, PageHeader, ProgressBar, Select, Stat, StatusBadge, Tabs, Tag, useToast } from '../../components/ui';
 import { BuildingsUnits } from './BuildingsUnits';
-import { UnitDrawer } from './UnitDrawer';
-import { KycBadge } from './OccupantOnboarding';
+import { Occupancy } from './Occupancy';
 import { CHART } from '../Dashboard';
 
 export function PropertyDetail() {
   const { id = '' } = useParams();
   const q = useApi(() => getProperty(id), [id]);
-  const [tab, setTab] = useState('overview');
+  const [params, setParams] = useSearchParams();
+  const tab = params.get('tab') ?? 'overview';
+  const setTab = (t: string) => setParams({ tab: t }, { replace: true });
+  const all = useApi(listProperties);
+  const nav = useNavigate();
   if (q.error) return <ErrorState error={q.error} />;
   if (!q.data) return <Loading />;
   const d = q.data;
@@ -37,6 +40,9 @@ export function PropertyDetail() {
         crumbs={[{ label: 'MDU Portfolio', to: '/mdu' }, { label: p.name }]}
         actions={
           <>
+            {(all.data?.length ?? 0) > 1 && (
+              <Select label="Switch property" value={p.id} onChange={(v) => nav(`/mdu/${v}?tab=${tab}`)} options={all.data!.map((x) => ({ value: x.id, label: x.name }))} className="w-60" />
+            )}
             {can('unit.manage') && (
               <LinkButton to={`/mdu/import?property=${p.id}`}>
                 <Upload className="h-4 w-4" /> Import units
@@ -78,7 +84,7 @@ export function PropertyDetail() {
           <BuildingsUnits propertyId={p.id} buildings={d.buildings} />
         </Card>
       )}
-      {tab === 'residents' && <Residents propertyId={p.id} />}
+      {tab === 'residents' && <Occupancy key={p.id} propertyId={p.id} embedded />}
       {tab === 'services' && <ServicesTab d={d} />}
       {tab === 'billing' && <BillingTab d={d} />}
       {tab === 'requests' && <RequestsTab d={d} />}
@@ -189,35 +195,6 @@ function Overview({ d }: { d: Awaited<ReturnType<typeof getProperty>> }) {
   );
 }
 
-function Residents({ propertyId }: { propertyId: string }) {
-  const q = useApi(() => listUnits(propertyId), [propertyId]);
-  const [search, setSearch] = useState('');
-  const [unit, setUnit] = useState<string | null>(null);
-  if (!q.data) return <Loading />;
-  const rows = q.data.filter((u) => u.occupant && (!search || `${u.number} ${u.occupant.name}`.toLowerCase().includes(search.toLowerCase())));
-  return (
-    <Card title="Residents and authorised contacts" actions={<div className="w-64"><SearchBox value={search} onChange={setSearch} placeholder="Search unit or name" /></div>}>
-      <p className="mb-3 text-xs text-slate-500">Residents are linked to units through dated occupancy assignments. They are separate customer accounts, not children of the management organisation, and their personal billing is not visible here.</p>
-      <DataTable
-        rows={rows}
-        rowKey={(u) => u.id}
-        onRowClick={(u) => setUnit(u.id)}
-        mobileTitle={(u) => `${u.number} · ${u.occupant!.name}`}
-        columns={[
-          { key: 'u', header: 'Unit', render: (u) => <span className="font-semibold">{u.number}</span>, sort: (u) => u.number },
-          { key: 'n', header: 'Occupant', render: (u) => u.occupant!.name, sort: (u) => u.occupant!.name, mobileHidden: true },
-          { key: 'r', header: 'Relationship', render: (u) => u.occupant!.role },
-          { key: 's', header: 'Since', render: (u) => date(u.occupant!.since) },
-          { key: 'k', header: 'KYC', render: (u) => <KycBadge kyc={u.occupant!.kyc} />, sort: (u) => u.occupant!.kyc.status },
-          { key: 'c', header: 'Connectivity', render: (u) => <StatusBadge status={u.connectivity} /> },
-          { key: 'p', header: 'Plan', render: (u) => u.services.find((s) => s.offeringId.startsWith('OFF-R'))?.offeringName ?? '—' },
-        ]}
-      />
-      {unit && <UnitDrawer unitId={unit} onClose={() => setUnit(null)} />}
-    </Card>
-  );
-}
-
 function ServicesTab({ d }: { d: Awaited<ReturnType<typeof getProperty>> }) {
   const nav = useNavigate();
   const shared = d.services.filter((s) => !s.unitId);
@@ -300,7 +277,7 @@ function BillingTab({ d }: { d: Awaited<ReturnType<typeof getProperty>> }) {
                   <Stat label="Overdue">{b.overdue ? <span className="font-semibold text-red-700">{money(b.overdue)}</span> : 'None'}</Stat>
                   <Stat label="Services">{b.serviceCount}</Stat>
                 </dl>
-                <LinkButton to="/billing/invoices" size="sm" variant="ghost" className="mt-1 px-0">
+                <LinkButton to="/billing?tab=invoices" size="sm" variant="ghost" className="mt-1 px-0">
                   View invoices →
                 </LinkButton>
               </li>
