@@ -22,7 +22,7 @@ import type {
   User,
 } from './types';
 
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 5;
 export const TODAY = '2026-10-23';
 
 function mulberry32(seed: number) {
@@ -438,7 +438,7 @@ export function buildSeed(): Database {
       const usage = ba.type === 'Resident' ? 0 : Math.round(lines.reduce((a, l) => a + l.amount, 0) * (0.02 + rnd() * 0.05));
       if (usage) lines.push({ description: 'Usage & overage charges', costCentre: lines[0].costCentre, amount: usage });
       const amount = lines.reduce((a, l) => a + l.amount, 0);
-      const issue = `${m}-0${ba.billCycleDay}`;
+      const issue = `${m}-${String(ba.billCycleDay).padStart(2, '0')}`;
       const due = addDays(issue, 21);
       let status: Invoice['status'] = 'Paid';
       if (m === '2026-10') status = 'Open';

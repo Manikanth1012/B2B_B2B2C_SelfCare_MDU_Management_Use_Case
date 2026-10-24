@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "typecheck": "tsc -b --noEmit",
     "test": "vitest run",
-    "e2e": "node e2e/smoke.mjs && node e2e/journeys.mjs"
+    "e2e": "node e2e/smoke.mjs && node e2e/journeys.mjs",
+    "bills": "node scripts/bills/generate-bills.mjs"
   },
   "dependencies": {
     "clsx": "^2.1.1",

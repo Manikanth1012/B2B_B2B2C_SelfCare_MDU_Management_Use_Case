@@ -144,7 +144,8 @@ body{margin:0;font-family:Montserrat,Arial,sans-serif;color:#111;font-size:8.6pt
 .eq{align-self:center;font-size:12pt;color:#555}
 .pay{background:#E9E9E9;border-radius:3mm;width:60mm;display:grid;grid-template-columns:1fr 1fr;padding:4mm 3mm}
 .pay .c{padding:0 2mm;font-size:7.6pt;color:#555}
-.pay .big{font-size:10.5pt;color:#111;font-weight:600;margin-top:3mm}
+.pay .big{font-size:10.5pt;color:#111;font-weight:600;margin-top:3mm;white-space:nowrap}
+.pay .big.long{font-size:8.6pt}
 .pay .tiny{font-size:5.2pt;color:#555;margin-top:1.5mm}
 .note{display:flex;gap:2.5mm;margin:5mm 15mm 0;font-size:6.6pt;font-weight:600;line-height:1.5;align-items:flex-start}
 .note .i{width:4.6mm;height:4.6mm;flex:none}
@@ -187,7 +188,8 @@ body{margin:0;font-family:Montserrat,Arial,sans-serif;color:#111;font-size:8.6pt
 .tbl td{padding:1.8mm 1.5mm;vertical-align:top}
 .tbl .r{text-align:right}
 .tbl .tot td{font-weight:700;padding-top:2.5mm}
-.tbl tr{page-break-inside:avoid}
+.tbl tr,.svc tr{page-break-inside:avoid}
+thead{display:table-header-group}
 .p3{page-break-before:always;padding:0 7mm}
 .p3 h1{color:#2E9BE6;font-size:17pt;font-weight:600;line-height:1.2;margin:4mm 0 8mm}
 .p3 .who{font-size:6.6pt;line-height:1.45}
@@ -246,8 +248,8 @@ function page1(m, qr) {
     </div>
     <div class="eq">=</div>
     <div class="pay">
-      <div class="c">Total Payable Amount<div class="big">USD ${usd(m.totalPayable)}</div><div class="tiny">Payable on or before ${long(inv.dueDate)}</div></div>
-      <div class="c">Payable after<br><b style="color:#111">${long(inv.dueDate)}</b><div class="big" style="margin-top:2mm">USD ${usd(m.totalPayable)}</div><div class="tiny">(incl USD 0 late payment charges)</div></div>
+      <div class="c">Total Payable Amount<div class="big${usd(m.totalPayable).length > 8 ? ' long' : ''}">USD ${usd(m.totalPayable)}</div><div class="tiny">Payable on or before ${long(inv.dueDate)}</div></div>
+      <div class="c">Payable after<br><b style="color:#111">${long(inv.dueDate)}</b><div class="big${usd(m.totalPayable).length > 8 ? ' long' : ''}" style="margin-top:2mm">USD ${usd(m.totalPayable)}</div><div class="tiny">(incl USD 0 late payment charges)</div></div>
     </div>
   </div>
   <div class="note"><img class="i" src="${ICON.info}" alt=""><span>Please pay before due date to avoid any late payment fee. Pay previous balance, if any, immediately to avoid disconnection. Previous Balance refers to outstanding amount as per the last bill. Adjustments refers to any credits passed in your account due to reversal / waiver of any charges</span></div>
@@ -294,17 +296,17 @@ function page2(m) {
   </div>
   <div class="small" style="margin-top:3mm"><b>Note</b>: Payment details under Last 3 Payments section doesn't include any payments towards the deposit</div>
   <table class="tbl">
-    <tr><th>Monthly Charges</th><th>Service No.</th><th>Rental Period</th><th class="r">Units</th><th class="r">Charge/Units</th><th class="r">Charges (USD)</th><th class="r">Discounts (USD)</th><th class="r">Net Charges (USD)</th></tr>
+    <thead><tr><th>Monthly Charges</th><th>Service No.</th><th>Rental Period</th><th class="r">Units</th><th class="r">Charge/Units</th><th class="r">Charges (USD)</th><th class="r">Discounts (USD)</th><th class="r">Net Charges (USD)</th></tr></thead>
     ${svcLines.map((l) => `<tr><td>${esc(l.plan)}${l.where && l.where !== l.plan ? `<br><span style="color:#666;font-size:6.2pt">${esc(l.where)}</span>` : ''}</td><td>${esc(l.serviceNo)}</td><td>${ddmmyy(m.from)} to<br>${ddmmyy(m.to)}</td><td class="r">1</td><td class="r">${l.net.toFixed(7)}</td><td class="r">${usd(l.net)}</td><td class="r">0.00</td><td class="r">${usd(l.net)}</td></tr>`).join('')}
     <tr class="tot"><td>Total</td><td></td><td></td><td class="r">${svcLines.length}</td><td></td><td class="r">${usd(m.monthly)}</td><td class="r">0.00</td><td class="r">${usd(m.monthly)}</td></tr>
   </table>
   <table class="tbl">
-    <tr><th style="width:38%">Tax</th><th>Date</th><th class="r">Charges (USD)</th></tr>
+    <thead><tr><th style="width:38%">Tax</th><th>Date</th><th class="r">Charges (USD)</th></tr></thead>
     <tr><td><b>GST @ ${(TAX_RATE * 100).toFixed(1)} %</b></td><td><b>${ddmmyy(m.from)} to ${ddmmyy(m.to)}</b></td><td class="r"><b>${usd(m.tax)}</b></td></tr>
     <tr class="tot"><td>Total<br><span style="font-weight:400;font-size:5.6pt">No Tax is payable on reverse charge</span></td><td></td><td class="r">${usd(m.tax)}</td></tr>
   </table>
   <table class="tbl">
-    <tr><th>Itemized Usage</th><th>Date &amp; Time</th><th>Number / APN</th><th>Duration / Volume</th><th class="r">Charges (USD)</th></tr>
+    <thead><tr><th>Itemized Usage</th><th>Date &amp; Time</th><th>Number / APN</th><th>Duration / Volume</th><th class="r">Charges (USD)</th></tr></thead>
     ${usageLines.length ? usageLines.map((l) => `<tr><td>Data / overage (aggregated)</td><td>${ddmmyy(m.from)} to ${ddmmyy(m.to)}</td><td>${esc(l.where)}</td><td>—</td><td class="r">${usd(l.net)}</td></tr>`).join('') : `<tr><td colspan="4">No chargeable usage in this bill period (unlimited plan)</td><td class="r">0.00</td></tr>`}
     <tr class="tot"><td>Total</td><td></td><td></td><td></td><td class="r">${usd(m.usage)}</td></tr>
   </table>
@@ -315,14 +317,14 @@ function page3(m) {
   const svcLines = m.lines.filter((l) => !l.usage);
   const perService = svcLines.length <= 3;
   const block = (title, rows, sub) => `
-    <table class="svc"><tr><th style="width:50%">Description</th><th>Service Charges (USD)</th></tr>
+    <table class="svc"><thead><tr><th style="width:50%">Description</th><th>Service Charges (USD)</th></tr></thead>
       <tr class="grp"><td colspan="2">${title}</td></tr>
       ${rows}
       <tr class="st"><td>Sub Total</td><td class="c">${usd(sub)}</td></tr></table>`;
   const body = perService
     ? svcLines.map((l) => `<div style="margin:5mm 0 0 6mm;font-size:7.6pt;font-weight:600">SERVICE NUMBER&nbsp;&nbsp;&nbsp;<span style="font-weight:500">${esc(l.serviceNo)}</span></div>${block('BUNDLE SUBSCRIPTIONS', `<tr><td>${esc(l.plan)}</td><td class="c">${usd(l.net)}</td></tr>`, l.net)}`).join('')
     : `<div style="margin:5mm 0 0 6mm;font-size:7.6pt;font-weight:600">SERVICE NUMBERS&nbsp;&nbsp;&nbsp;<span style="font-weight:500">${svcLines.length} connections</span></div>
-       <table class="svc"><tr><th>Service Number</th><th>Unit / Site</th><th style="width:40%">Description</th><th>Service Charges (USD)</th></tr>
+       <table class="svc"><thead><tr><th>Service Number</th><th>Unit / Site</th><th style="width:40%">Description</th><th>Service Charges (USD)</th></tr></thead>
        <tr class="grp"><td colspan="4">BUNDLE SUBSCRIPTIONS</td></tr>
        ${svcLines.map((l) => `<tr><td>${esc(l.serviceNo)}</td><td>${esc(l.where)}</td><td>${esc(l.plan)}</td><td class="c">${usd(l.net)}</td></tr>`).join('')}
        <tr class="st"><td colspan="3">Sub Total</td><td class="c">${usd(m.monthly)}</td></tr></table>`;

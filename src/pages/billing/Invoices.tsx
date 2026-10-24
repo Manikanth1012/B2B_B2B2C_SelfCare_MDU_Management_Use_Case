@@ -3,18 +3,28 @@ import { useSearchParams } from 'react-router-dom';
 import { Download } from 'lucide-react';
 import { can, listInvoices, payInvoice } from '../../api/api';
 import type { BillingAccount, Invoice } from '../../data/types';
+import { BILL_PDFS } from '../../data/billPdfs';
 import { useApi } from '../../lib/hooks';
 import { date, downloadText, money, toCsv } from '../../lib/format';
 import { Button, DataTable, ErrorState, Field, Loading, Modal, SearchBox, Select, SimNote, Stat, StatusBadge, useAction } from '../../components/ui';
 
 type Inv = Invoice & { billingName: string; currency: string };
 
+/** Downloads the invoice: the template PDF when one was generated for it, else a simple HTML copy. */
 export function downloadInvoice(i: Inv) {
+  if (BILL_PDFS.has(i.id)) {
+    const a = document.createElement('a');
+    a.href = `${import.meta.env.BASE_URL}bills/${i.id}.pdf`;
+    a.download = `Invoice_${i.issueDate.replace(/-/g, '')}120000_${i.billingAccountId}_${i.id}.pdf`;
+    a.click();
+    return;
+  }
+  // Invoice amounts are tax-inclusive; show the GST share the same way the PDF bills do.
+  const tax = Math.round((i.amount - i.amount / 1.18) * 100) / 100;
   const lines = i.lines.map((l) => `<tr><td>${l.description}</td><td>${l.costCentre}</td><td style="text-align:right">${money(l.amount, i.currency)}</td></tr>`).join('');
-  const tax = Math.round(i.amount * 0.18);
   downloadText(
     `${i.id}.html`,
-    `<!doctype html><meta charset="utf-8"><title>${i.id}</title><body style="font-family:Poppins,Arial,sans-serif;max-width:720px;margin:32px auto;color:#1D1D1D"><h2>Tax invoice ${i.id}</h2><p>${i.billingName} · Period ${i.period}<br>Issued ${date(i.issueDate)} · Due ${date(i.dueDate)} · Status ${i.status}</p><table width="100%" cellpadding="6" style="border-collapse:collapse"><tr style="background:#F4F4F4"><th align="left">Description</th><th align="left">Cost centre</th><th align="right">Amount</th></tr>${lines}<tr><td colspan="2">GST 18%</td><td align="right">${money(tax, i.currency)}</td></tr><tr><td colspan="2"><b>Total</b></td><td align="right"><b>${money(i.amount + tax, i.currency)}</b></td></tr></table><p style="font-size:11px;color:#666">Synthetic prototype invoice — not a real tax document.</p></body>`,
+    `<!doctype html><meta charset="utf-8"><title>${i.id}</title><body style="font-family:Poppins,Arial,sans-serif;max-width:720px;margin:32px auto;color:#1D1D1D"><h2>Tax invoice ${i.id}</h2><p>${i.billingName} · Period ${i.period}<br>Issued ${date(i.issueDate)} · Due ${date(i.dueDate)} · Status ${i.status}</p><table width="100%" cellpadding="6" style="border-collapse:collapse"><tr style="background:#F4F4F4"><th align="left">Description</th><th align="left">Cost centre</th><th align="right">Amount</th></tr>${lines}<tr><td colspan="2"><b>Total (incl. GST)</b></td><td align="right"><b>${money(i.amount, i.currency)}</b></td></tr><tr><td colspan="2">of which GST 18%</td><td align="right">${money(tax, i.currency)}</td></tr></table><p style="font-size:11px;color:#666">Synthetic prototype invoice — not a real tax document.</p></body>`,
     'text/html',
   );
 }
@@ -125,7 +135,7 @@ export function InvoicesPanel({ accountId = 'ALL' }: { accountId?: string }) {
               ))}
               <tr>
                 <td className="py-2 font-semibold" colSpan={2}>
-                  Total (excl. tax)
+                  Total (incl. 18% GST)
                 </td>
                 <td className="text-right font-semibold">{money(open.amount, open.currency)}</td>
               </tr>
