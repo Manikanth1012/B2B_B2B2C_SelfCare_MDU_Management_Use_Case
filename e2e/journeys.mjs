@@ -268,6 +268,18 @@ await go('/services');
 const svc = await text();
 ok('I: only own services', (svc.match(/SRV-/g) ?? []).length <= 2, `count=${(svc.match(/SRV-/g) ?? []).length}`);
 
+// Bill PDFs: Download serves the generated template bill (npm run bills)
+for (const [u, inv, ba] of [['U-400', 'INV-7001-202610', 'BA-7001'], ['U-200', 'INV-8200-202610', 'BA-8200']]) {
+  await as(u);
+  await go('/billing?tab=invoices');
+  await page.reload(); // same URL for both personas, so force the persona switch to apply
+  await page.waitForTimeout(800);
+  await page.getByPlaceholder('Invoice number or period (YYYY-MM)').fill(inv);
+  const [dl] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: `Download ${inv}` }).click()]);
+  const head = await new Promise((res) => dl.createReadStream().then((st) => st.once('data', (c) => (res(c.subarray(0, 5).toString()), st.destroy()))));
+  ok(`Bill PDF download ${inv}`, dl.suggestedFilename() === `Invoice_${inv.slice(-6)}${ba === 'BA-7001' ? '05' : '01'}120000_${ba}_${inv}.pdf` && head === '%PDF-', dl.suggestedFilename());
+}
+
 // Cross-tenant: Palm Meadows PM cannot see Green Valley
 await as('U-300');
 await go('/mdu');

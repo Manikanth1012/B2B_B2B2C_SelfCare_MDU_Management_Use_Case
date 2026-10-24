@@ -50,12 +50,15 @@ npm run dev        # http://localhost:5173
 | `npm run build` | Type-check and produce a static build in `dist/` (relative paths, hostable on any static server) |
 | `npm run preview` | Serve `dist/` on http://localhost:4173 |
 | `npm run e2e` | Browser smoke test and acceptance journeys (needs `npm run preview` running; set `CHROME_PATH` if Playwright can't find Chrome) |
+| `npm run bills` | Regenerate the PDF bills in `public/bills/` from the seed data (see *PDF bills* below) |
 
 **In the app:**
 
 - **User menu** (top right): switch demo persona, open **Read me** (the in-app demo guide at `#/guide`), Settings, Logout, and **Reset demo data**.
 - **Admin → Read me · Demo guide**: the same walkthrough as this README, with one-click "Start journey" buttons that sign you in as the right persona and open the right screen.
 - State persists in the browser (`localStorage`) across refreshes until you reset it.
+
+**PDF bills.** The invoices that **Priya Menon** (Green Valley Residences `BA-8100`, Sunrise Heights `BA-8200`) and **Sneha Kulkarni** (`BA-7001`, `BA-7002`) see on Bills & Payments download as 3-page PDF bills in the 6D invoice template: summary with balance equation, charge summary, payment channels and QR; usage details with 6-month history, last 3 payments, monthly charges and tax; service details. That is 24 bills, May–October 2026. `scripts/bills/generate-bills.mjs` builds them from the same seed as the app, so every figure matches the portal. Invoice amounts are tax-inclusive and the bill shows the 18% GST share. Large property bills list every connection and repeat table headings across pages. Other invoices download as a simple HTML copy. The Download icon in Invoice History and the Download button in the invoice detail both use the PDF, saved as `Invoice_<issue date>120000_<billing account>_<invoice>.pdf`. Run `npm run bills` after changing the seed or the template (set `CHROME_PATH` if needed).
 
 ---
 
@@ -227,7 +230,7 @@ CHROME_PATH=/path/to/chrome npm run e2e
 ```
 
 - `e2e/smoke.mjs`: loads all 38 routes as all 8 personas and fails on any runtime error or blank page.
-- `e2e/journeys.mjs`: drives acceptance journeys **A–L** plus the duplicate-customer guard, the KYC gate on resident billing and cross-tenant isolation and fails on any assertion or page error.
+- `e2e/journeys.mjs`: drives acceptance journeys **A–L** plus the duplicate-customer guard, the KYC gate on resident billing, PDF bill downloads (Sneha and Priya) and cross-tenant isolation and fails on any assertion or page error.
 
 Latest run: **0 runtime errors; all journeys pass**. Mobile check at 390 px: no horizontal overflow.
 
