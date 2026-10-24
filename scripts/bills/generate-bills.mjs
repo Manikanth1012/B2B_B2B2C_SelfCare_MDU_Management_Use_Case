@@ -36,6 +36,8 @@ const b64 = (p) => readFileSync(p).toString('base64');
 const font = (w) => `@font-face{font-family:Montserrat;font-weight:${w};src:url(data:font/woff2;base64,${b64(join(ROOT, `node_modules/@fontsource/montserrat/files/montserrat-latin-${w}-normal.woff2`))}) format('woff2')}`;
 const LOGO = `data:image/png;base64,${b64(join(ROOT, 'public/brand/6d-logo.png'))}`;
 const MARK = `data:image/png;base64,${b64(join(ROOT, 'scripts/bills/6d-mark-512.png'))}`;
+// Payment-channel and info icons, taken from the reference 6D invoice template.
+const ICON = Object.fromEntries(['online', 'store', 'upi', 'info'].map((n) => [n, `data:image/png;base64,${b64(join(ROOT, `scripts/bills/icon-${n}.png`))}`]));
 const usd = (n) => (Math.round(n * 100) / 100).toFixed(2);
 const d = (iso) => new Date(iso + 'T00:00:00Z');
 const ddmmyy = (iso) => `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(2, 4)}`;
@@ -145,7 +147,7 @@ body{margin:0;font-family:Montserrat,Arial,sans-serif;color:#111;font-size:8.6pt
 .pay .big{font-size:10.5pt;color:#111;font-weight:600;margin-top:3mm}
 .pay .tiny{font-size:5.2pt;color:#555;margin-top:1.5mm}
 .note{display:flex;gap:2.5mm;margin:5mm 15mm 0;font-size:6.6pt;font-weight:600;line-height:1.5;align-items:flex-start}
-.note .i{width:4.3mm;height:4.3mm;border:0.7pt solid #222;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:7pt;flex:none}
+.note .i{width:4.6mm;height:4.6mm;flex:none}
 .lower{display:grid;grid-template-columns:1fr 1fr;gap:9mm;margin:5mm 13mm 0;align-items:start}
 .cs{width:100%;border-collapse:collapse;font-size:7.4pt}
 .cs th{text-align:left;font-size:9pt;padding:1.5mm 2.5mm 2.5mm;font-weight:700;white-space:nowrap}
@@ -157,9 +159,9 @@ body{margin:0;font-family:Montserrat,Arial,sans-serif;color:#111;font-size:8.6pt
 .cs .tot td{font-weight:700}
 .ways{border:0.6pt solid #CFCFCF;border-radius:2mm;padding:3mm 4mm}
 .ways h3{margin:0 0 3mm;font-size:8pt;font-weight:500}
-.icons{display:flex;gap:6mm;align-items:center;font-size:6.6pt;font-weight:700}
+.icons{display:flex;gap:7mm;align-items:center;font-size:6.6pt;font-weight:700;line-height:1.25}
 .icons span{display:flex;align-items:center;gap:1.5mm}
-.ico{width:5mm;height:5mm;border:0.7pt solid #E31E43;border-radius:1mm;display:inline-flex;align-items:center;justify-content:center;font-size:5pt;color:#E31E43}
+.ico{height:6.5mm;width:auto}
 .pmt{display:grid;grid-template-columns:1fr 1fr;gap:4mm;font-size:6.4pt;font-weight:600;margin-top:4mm;line-height:1.5}
 .qr{border:0.6pt solid #CFCFCF;border-radius:2mm;width:40mm;margin:3mm 0 0 auto;padding:2.5mm;font-size:6.2pt;font-weight:700}
 .qr img{width:31mm;display:block;margin:1.5mm auto 0}
@@ -248,7 +250,7 @@ function page1(m, qr) {
       <div class="c">Payable after<br><b style="color:#111">${long(inv.dueDate)}</b><div class="big" style="margin-top:2mm">USD ${usd(m.totalPayable)}</div><div class="tiny">(incl USD 0 late payment charges)</div></div>
     </div>
   </div>
-  <div class="note"><span class="i">i</span><span>Please pay before due date to avoid any late payment fee. Pay previous balance, if any, immediately to avoid disconnection. Previous Balance refers to outstanding amount as per the last bill. Adjustments refers to any credits passed in your account due to reversal / waiver of any charges</span></div>
+  <div class="note"><img class="i" src="${ICON.info}" alt=""><span>Please pay before due date to avoid any late payment fee. Pay previous balance, if any, immediately to avoid disconnection. Previous Balance refers to outstanding amount as per the last bill. Adjustments refers to any credits passed in your account due to reversal / waiver of any charges</span></div>
   <div class="lower">
     <table class="cs">
       <tr><th style="background:none">Charge Summary</th><th style="background:none">Amount (USD)</th></tr>
@@ -256,7 +258,7 @@ function page1(m, qr) {
     </table>
     <div>
       <div class="ways"><h3>Many ways to pay your Bill</h3>
-        <div class="icons"><span><i class="ico">$</i>Online<br>(My6d.in/6d-app)</span><span><i class="ico">◫</i>6d Stores</span><span><i class="ico">❯</i>UPI</span></div>
+        <div class="icons"><span><img class="ico" src="${ICON.online}" alt="">Online<br>(My6d.in/6d-app)</span><span><img class="ico" src="${ICON.store}" alt="">6d Stores</span><span><img class="ico" src="${ICON.upi}" alt="">UPI</span></div>
       </div>
       <div class="pmt"><div>Cheque / DD should be payable to<br>6d Pvt Ltd. - ${m.acct}</div><div>For making payment using UPI, your<br>VPA ID VFIL${m.acct}@HSBC</div></div>
       <div class="qr">GST QR Code<br>Invoice Ref No: ${esc(inv.id)}<img src="${qr}" alt="Payment QR"></div>
