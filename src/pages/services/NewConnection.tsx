@@ -35,11 +35,13 @@ export function NewConnection() {
   const [qual, setQual] = useState<ServiceQualification | null>(null);
   const [offeringId, setOfferingId] = useState('');
   const [addOns, setAddOns] = useState<string[]>([]);
+  const [includeVoice, setIncludeVoice] = useState(false);
+  const [voiceAddOns, setVoiceAddOns] = useState<string[]>([]);
   const [billing, setBilling] = useState<string>('');
   const [slot, setSlot] = useState({ date: nextDays(1)[0], window: '09:00–12:00' });
   const [terms, setTerms] = useState(false);
   const [step, setStep] = useState(0);
-  const [done, setDone] = useState<{ requestId: string; orderId: string; serviceId: string } | null>(null);
+  const [done, setDone] = useState<Array<{ requestId: string; orderId: string; serviceId: string }> | null>(null);
   const { run, busy } = useAction();
 
   const props = useApi(() => (canProps ? listProperties() : Promise.resolve([])));
@@ -62,8 +64,11 @@ export function NewConnection() {
   if (!can('service.order')) return <ErrorState error={Object.assign(new Error('Your role cannot place orders.'), { name: 'AuthError' })} />;
 
   const eligible = offerings().filter((o) => qual?.eligibleOfferingIds.includes(o.id));
-  const offering = eligible.find((o) => o.id === offeringId);
+  const voiceOffering = eligible.find((o) => o.id === 'OFF-V01');
+  const broadbandEligible = eligible.filter((o) => o.id !== 'OFF-V01');
+  const offering = broadbandEligible.find((o) => o.id === offeringId);
   const addOnTotal = (offering?.addOns ?? []).filter((a) => addOns.includes(a.id)).reduce((a, x) => a + x.mrc, 0);
+  const voiceAddOnTotal = (voiceOffering?.addOns ?? []).filter((a) => voiceAddOns.includes(a.id)).reduce((a, x) => a + x.mrc, 0);
   const billingOptions: { value: string; label: string }[] =
     kind === 'unit'
       ? [
@@ -75,7 +80,7 @@ export function NewConnection() {
   const valid = [
     kind === 'unit' ? !!unitId : !!accountId,
     qual?.result === 'Service Available',
-    !!offering,
+    !!offering || includeVoice,
     !!billing,
     !!slot.date,
     terms,
@@ -87,18 +92,20 @@ export function NewConnection() {
         <Card>
           <div className="py-6 text-center">
             <CheckCircle2 className="mx-auto h-12 w-12 text-emerald-600" />
-            <h1 className="mt-3 text-xl font-semibold text-navy">Order submitted</h1>
-            <p className="mt-1 text-sm text-slate-600">
-              Order <span className="font-mono">{done.orderId}</span> · request <span className="font-mono">{done.requestId}</span> · service <span className="font-mono">{done.serviceId}</span> (Pending Installation)
-            </p>
+            <h1 className="mt-3 text-xl font-semibold text-navy">{done.length > 1 ? 'Orders submitted' : 'Order submitted'}</h1>
+            {done.map((d) => (
+              <p key={d.orderId} className="mt-1 text-sm text-slate-600">
+                Order <span className="font-mono">{d.orderId}</span> - request <span className="font-mono">{d.requestId}</span> - service <span className="font-mono">{d.serviceId}</span> (Pending Installation)
+              </p>
+            ))}
             <p className="mt-1 text-sm text-slate-600">
               Installation: {date(slot.date)}, {slot.window}
             </p>
             <div className="mt-5 flex flex-wrap justify-center gap-2">
-              <LinkButton to={`/requests/${done.requestId}`} variant="primary">
+              <LinkButton to={`/requests/${done[0].requestId}`} variant="primary">
                 Track order
               </LinkButton>
-              <LinkButton to={`/services/${done.serviceId}`}>View service</LinkButton>
+              <LinkButton to={`/services/${done[0].serviceId}`}>View service</LinkButton>
             </div>
           </div>
         </Card>
@@ -133,7 +140,7 @@ export function NewConnection() {
                   <Select label="Property" value={pid} onChange={(v) => (setPid(v), setUnitId(''))} options={[{ value: '', label: 'Select…' }, ...(props.data ?? []).map((p) => ({ value: p.id, label: p.name }))]} />
                 </Field>
                 <Field label="Unit" required hint="Units already connected are not listed">
-                  <Select label="Unit" value={unitId} onChange={setUnitId} options={[{ value: '', label: 'Select…' }, ...(units.data ?? []).filter((u) => u.connectivity === 'Ready for Service' || u.connectivity === 'Network Not Ready' || u.id === unitId).map((u) => ({ value: u.id, label: `${u.number} · ${u.connectivity} · ${u.occupancy}` }))]} />
+                  <Select label="Unit" value={unitId} onChange={setUnitId} options={[{ value: '', label: 'Select…' }, ...(units.data ?? []).filter((u) => u.connectivity === 'Ready for Service' || u.connectivity === 'Network Not Ready' || u.id === unitId).map((u) => ({ value: u.id, label: `${u.number} - ${u.connectivity} - ${u.occupancy}` }))]} />
                 </Field>
               </div>
             )}
@@ -175,39 +182,72 @@ export function NewConnection() {
 
         {step === 2 && (
           <div className="space-y-3">
-            {eligible.map((o) => (
-              <label key={o.id} className={clsx('flex cursor-pointer items-center gap-3 rounded-md border p-3 text-sm', offeringId === o.id ? 'border-crimson bg-crimson-50' : 'border-line-200')}>
-                <input type="radio" checked={offeringId === o.id} onChange={() => (setOfferingId(o.id), setAddOns([]))} />
-                {o.id === 'OFF-V01' && <Phone className="h-4 w-4 shrink-0 text-royal-700" />}
-                <span className="flex-1">
-                  <span className="font-medium text-navy">{o.name}</span>
-                  <span className="block text-xs text-slate-500">
-                    {o.id === 'OFF-V01' ? 'Fixed landline' : (o.speed ?? o.category)} · {o.contractMonths}-month term
-                  </span>
-                </span>
-                <span className="text-right font-semibold">
-                  {money(o.mrc)}/mo
-                  <span className="block text-xs font-normal text-slate-500">{money(o.nrc)} one-time</span>
-                </span>
-              </label>
-            ))}
-            {offeringId === 'OFF-V01' && assignedNumber && (
-              <p className="mt-2 rounded-lg bg-green-50 p-3 text-sm text-green-800">
-                Your pre-assigned number: <b>{assignedNumber}</b>. It will be activated when your service goes live.
-              </p>
+            {broadbandEligible.length > 0 && (
+              <>
+                <p className="text-xs font-semibold uppercase tracking-wide text-ink-400">Broadband plan</p>
+                {broadbandEligible.map((o) => (
+                  <label key={o.id} className={clsx('flex cursor-pointer items-center gap-3 rounded-md border p-3 text-sm', offeringId === o.id ? 'border-crimson bg-crimson-50' : 'border-line-200')}>
+                    <input type="radio" name="broadband" checked={offeringId === o.id} onChange={() => (setOfferingId(o.id), setAddOns([]))} />
+                    <span className="flex-1">
+                      <span className="font-medium text-navy">{o.name}</span>
+                      <span className="block text-xs text-slate-500">{o.speed ?? o.category} - {o.contractMonths}-month term</span>
+                    </span>
+                    <span className="text-right font-semibold">
+                      {money(o.mrc)}/mo
+                      <span className="block text-xs font-normal text-slate-500">{money(o.nrc)} one-time</span>
+                    </span>
+                  </label>
+                ))}
+                {offering?.addOns && (
+                  <div>
+                    <p className="mb-1 text-sm font-semibold text-navy">Broadband add-ons</p>
+                    <div className="flex flex-wrap gap-2">
+                      {offering.addOns.map((a) => (
+                        <label key={a.id} className={clsx('flex cursor-pointer items-center gap-2 rounded-md border px-3 py-1.5 text-sm', addOns.includes(a.id) ? 'border-crimson bg-crimson-50' : 'border-line-200')}>
+                          <input type="checkbox" checked={addOns.includes(a.id)} onChange={(e) => setAddOns(e.target.checked ? [...addOns, a.id] : addOns.filter((x) => x !== a.id))} />
+                          {a.name} (+{money(a.mrc)})
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
             )}
-            {offering?.addOns && (
-              <div>
-                <p className="mb-1 text-sm font-semibold text-navy">Add-ons</p>
-                <div className="flex flex-wrap gap-2">
-                  {offering.addOns.map((a) => (
-                    <label key={a.id} className={clsx('flex cursor-pointer items-center gap-2 rounded-md border px-3 py-1.5 text-sm', addOns.includes(a.id) ? 'border-crimson bg-crimson-50' : 'border-line-200')}>
-                      <input type="checkbox" checked={addOns.includes(a.id)} onChange={(e) => setAddOns(e.target.checked ? [...addOns, a.id] : addOns.filter((x) => x !== a.id))} />
-                      {a.name} (+{money(a.mrc)})
-                    </label>
-                  ))}
-                </div>
-              </div>
+            {voiceOffering && (
+              <>
+                {broadbandEligible.length > 0 && <hr className="border-line-100" />}
+                <p className="text-xs font-semibold uppercase tracking-wide text-ink-400">Fixed voice</p>
+                <label className={clsx('flex cursor-pointer items-center gap-3 rounded-md border p-3 text-sm', includeVoice ? 'border-crimson bg-crimson-50' : 'border-line-200')}>
+                  <input type="checkbox" checked={includeVoice} onChange={(e) => (setIncludeVoice(e.target.checked), setVoiceAddOns([]))} />
+                  <Phone className="h-4 w-4 shrink-0 text-royal-700" />
+                  <span className="flex-1">
+                    <span className="font-medium text-navy">{voiceOffering.name}</span>
+                    <span className="block text-xs text-slate-500">Fixed landline - {voiceOffering.contractMonths}-month term</span>
+                  </span>
+                  <span className="text-right font-semibold">
+                    {money(voiceOffering.mrc)}/mo
+                    <span className="block text-xs font-normal text-slate-500">{money(voiceOffering.nrc)} one-time</span>
+                  </span>
+                </label>
+                {includeVoice && assignedNumber && (
+                  <p className="rounded-lg bg-green-50 p-3 text-sm text-green-800">
+                    Your pre-assigned number: <b>{assignedNumber}</b>. It will be activated when your service goes live.
+                  </p>
+                )}
+                {includeVoice && voiceOffering.addOns && (
+                  <div>
+                    <p className="mb-1 text-sm font-semibold text-navy">Voice add-ons</p>
+                    <div className="flex flex-wrap gap-2">
+                      {voiceOffering.addOns.map((a) => (
+                        <label key={a.id} className={clsx('flex cursor-pointer items-center gap-2 rounded-md border px-3 py-1.5 text-sm', voiceAddOns.includes(a.id) ? 'border-crimson bg-crimson-50' : 'border-line-200')}>
+                          <input type="checkbox" checked={voiceAddOns.includes(a.id)} onChange={(e) => setVoiceAddOns(e.target.checked ? [...voiceAddOns, a.id] : voiceAddOns.filter((x) => x !== a.id))} />
+                          {a.name} (+{money(a.mrc)})
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}
@@ -242,7 +282,7 @@ export function NewConnection() {
           </div>
         )}
 
-        {step === 5 && offering && (
+        {step === 5 && (offering || includeVoice) && (
           <div className="space-y-4">
             <dl className="grid gap-4 sm:grid-cols-3">
               <Stat label="For">{kind === 'unit' ? `${unit.data?.propertyName} ${unit.data?.number}` : accounts.data?.find((a) => a.id === accountId)?.name}</Stat>
@@ -250,32 +290,43 @@ export function NewConnection() {
               <Stat label="Qualification">
                 <StatusBadge status={qual!.result} /> <span className="font-mono text-[11px]">{qual!.id}</span>
               </Stat>
-              <Stat label="Plan">{offering.name}</Stat>
-              <Stat label="Add-ons">{addOns.length ? offering.addOns!.filter((a) => addOns.includes(a.id)).map((a) => a.name).join(', ') : 'None'}</Stat>
+              {offering && <Stat label="Broadband plan">{offering.name}</Stat>}
+              {offering && <Stat label="Broadband add-ons">{addOns.length ? offering.addOns!.filter((a) => addOns.includes(a.id)).map((a) => a.name).join(', ') : 'None'}</Stat>}
+              {includeVoice && <Stat label="Fixed voice">{voiceOffering!.name}{assignedNumber ? ` - ${assignedNumber}` : ''}</Stat>}
+              {includeVoice && <Stat label="Voice add-ons">{voiceAddOns.length ? voiceOffering!.addOns!.filter((a) => voiceAddOns.includes(a.id)).map((a) => a.name).join(', ') : 'None'}</Stat>}
               <Stat label="Billing">{billingOptions.find((b) => b.value === billing)?.label}</Stat>
               <Stat label="Installation">
                 {date(slot.date)}, {slot.window}
               </Stat>
-              <Stat label="Contract term">{offering.contractMonths} months</Stat>
             </dl>
             <table className="w-full text-sm">
               <tbody>
-                <tr className="border-b border-line-100">
-                  <td className="py-1.5">Monthly recurring ({offering.name}{addOns.length ? ' + add-ons' : ''})</td>
-                  <td className="py-1.5 text-right font-semibold">{money(offering.mrc + addOnTotal)}</td>
-                </tr>
-                <tr className="border-b border-line-100">
-                  <td className="py-1.5">One-time installation</td>
-                  <td className="py-1.5 text-right font-semibold">{money(offering.nrc)}</td>
-                </tr>
+                {offering && (
+                  <tr className="border-b border-line-100">
+                    <td className="py-1.5">Monthly recurring ({offering.name}{addOns.length ? ' + add-ons' : ''})</td>
+                    <td className="py-1.5 text-right font-semibold">{money(offering.mrc + addOnTotal)}</td>
+                  </tr>
+                )}
+                {includeVoice && (
+                  <tr className="border-b border-line-100">
+                    <td className="py-1.5">Monthly recurring ({voiceOffering!.name}{voiceAddOns.length ? ' + add-ons' : ''})</td>
+                    <td className="py-1.5 text-right font-semibold">{money(voiceOffering!.mrc + voiceAddOnTotal)}</td>
+                  </tr>
+                )}
+                {offering && (
+                  <tr className="border-b border-line-100">
+                    <td className="py-1.5">One-time installation</td>
+                    <td className="py-1.5 text-right font-semibold">{money(offering.nrc)}</td>
+                  </tr>
+                )}
                 <tr>
-                  <td className="py-1.5 text-xs text-slate-500">Taxes (GST 18%) applied on invoice</td>
+                  <td className="py-1.5 text-xs text-slate-500">Taxes applied on invoice</td>
                   <td />
                 </tr>
               </tbody>
             </table>
             <label className="flex items-start gap-2 text-sm">
-              <input type="checkbox" checked={terms} onChange={(e) => setTerms(e.target.checked)} className="mt-1" />I accept the charges above, the {offering.contractMonths}-month minimum term and the operator’s service terms.
+              <input type="checkbox" checked={terms} onChange={(e) => setTerms(e.target.checked)} className="mt-1" />I accept the charges above and the operator's service terms.
             </label>
             <SimNote>Submits a TMF622 product order and schedules installation (simulated). The service stays Pending Installation until fulfilment completes.</SimNote>
           </div>
@@ -295,20 +346,25 @@ export function NewConnection() {
               loading={busy}
               disabled={!terms}
               onClick={async () => {
-                const r = await run(() =>
-                  submitNewConnection({
-                    qualificationId: qual!.id,
-                    unitId: kind === 'unit' ? unitId : undefined,
-                    businessAccountId: kind === 'business' ? accountId : undefined,
-                    address,
-                    offeringId,
-                    addOns,
-                    billing: billing === 'new-resident' ? { mode: 'new-resident' } : { mode: 'existing', billingId: billing },
-                    appointment: slot,
-                    acceptedTerms: terms,
-                  }),
-                );
-                if (r) setDone(r);
+                const base = {
+                  qualificationId: qual!.id,
+                  unitId: kind === 'unit' ? unitId : undefined,
+                  businessAccountId: kind === 'business' ? accountId : undefined,
+                  address,
+                  billing: billing === 'new-resident' ? { mode: 'new-resident' as const } : { mode: 'existing' as const, billingId: billing },
+                  appointment: slot,
+                  acceptedTerms: terms,
+                };
+                const results: Array<{ requestId: string; orderId: string; serviceId: string }> = [];
+                if (offeringId) {
+                  const r = await run(() => submitNewConnection({ ...base, offeringId, addOns }));
+                  if (r) results.push(r);
+                }
+                if (includeVoice) {
+                  const r = await run(() => submitNewConnection({ ...base, offeringId: 'OFF-V01', addOns: voiceAddOns, billing: { mode: 'existing', billingId: billing } }));
+                  if (r) results.push(r);
+                }
+                if (results.length) setDone(results);
               }}
             >
               Submit order
