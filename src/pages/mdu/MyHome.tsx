@@ -16,7 +16,8 @@ export function MyHome() {
   if (q.error) return <ErrorState error={q.error} />;
   if (!q.data) return <Loading />;
   const { unit, property, customer, occupancy, notices, appointments, unitRequests } = q.data;
-  const broadband = unit.services.find((s) => s.status !== 'Terminated');
+  const broadband = unit.services.find((s) => s.status !== 'Terminated' && s.offeringId !== 'OFF-V01');
+  const voiceService = unit.services.find((s) => s.offeringId === 'OFF-V01' && s.status !== 'Terminated');
   const current = occupancy.find((o) => !o.validTo);
   const upcoming = appointments.filter((a) => a.status === 'Scheduled' || a.status === 'Rescheduled');
 
@@ -125,6 +126,33 @@ export function MyHome() {
                 Check availability & order
               </LinkButton>
             </div>
+          )}
+        </Card>
+
+        <Card title="Home phone (FixedVoice)">
+          {voiceService ? (
+            <dl className="space-y-3">
+              <Stat label="Assigned number">
+                <span className="flex items-center gap-1.5 text-lg font-semibold text-navy">
+                  <Phone className="h-4 w-4 text-royal" />
+                  {voiceService.phoneNumber ?? '—'}
+                </span>
+              </Stat>
+              <Stat label="Status"><StatusBadge status={voiceService.status} /></Stat>
+              <Stat label="Plan">{voiceService.offeringName}</Stat>
+            </dl>
+          ) : (
+            <div className="text-sm text-ink-700">
+              No FixedVoice service at this unit.{' '}
+              <LinkButton to={`/services/new?unit=${unit.id}`} size="sm" variant="primary" className="ml-2">
+                Add FixedVoice
+              </LinkButton>
+            </div>
+          )}
+          {voiceService && (
+            <LinkButton to={`/services/${voiceService.id}`} size="sm" variant="ghost" className="mt-3 px-0">
+              Manage plan & add-ons →
+            </LinkButton>
           )}
         </Card>
 
