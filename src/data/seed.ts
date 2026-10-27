@@ -12,6 +12,7 @@ import type {
   InvoiceLine,
   OccupancyAssignment,
   Payment,
+  PhoneNumber,
   ProductOffering,
   Property,
   Role,
@@ -87,20 +88,47 @@ export const OFFERINGS: ProductOffering[] = [
   { id: 'OFF-B07', name: 'Business FTTH 300 Mbps', category: 'FTTH Broadband', segment: 'Business', speed: '300 Mbps', mrc: 3499, nrc: 1000, contractMonths: 12, techRequired: ['FTTH', 'FTTB'] },
   {
     id: 'OFF-R01', name: 'FiberHome 100 Mbps', category: 'FTTH Broadband', segment: 'Residential', speed: '100 Mbps', mrc: 699, nrc: 500, contractMonths: 12, techRequired: ['FTTH', 'FTTB', 'Ethernet'],
-    addOns: [{ id: 'ADD-OTT', name: 'OTT Entertainment Pack', mrc: 199 }, { id: 'ADD-MESH', name: 'Mesh Wi-Fi Extender', mrc: 149 }, { id: 'ADD-VOICE', name: 'Fixed Voice Line', mrc: 99 }],
+    addOns: [
+      { id: 'ADD-OTT', name: 'OTT Entertainment Pack', mrc: 5 },
+      { id: 'ADD-OTT-PREM', name: 'OTT Premium Pack – Sports & Movies', mrc: 12 },
+      { id: 'ADD-STB', name: 'Additional Set-top Box', mrc: 8 },
+      { id: 'ADD-MESH', name: 'Mesh Wi-Fi Extender', mrc: 4 },
+      { id: 'ADD-MESH-NODE', name: 'Extra Mesh Node', mrc: 6 },
+      { id: 'ADD-VOICE', name: 'Fixed Voice Line', mrc: 3 },
+    ],
   },
   {
     id: 'OFF-R02', name: 'FiberHome 300 Mbps', category: 'FTTH Broadband', segment: 'Residential', speed: '300 Mbps', mrc: 999, nrc: 500, contractMonths: 12, techRequired: ['FTTH', 'FTTB'],
-    addOns: [{ id: 'ADD-OTT', name: 'OTT Entertainment Pack', mrc: 199 }, { id: 'ADD-MESH', name: 'Mesh Wi-Fi Extender', mrc: 149 }, { id: 'ADD-SIP', name: 'Static IP', mrc: 299 }],
+    addOns: [
+      { id: 'ADD-OTT', name: 'OTT Entertainment Pack', mrc: 5 },
+      { id: 'ADD-OTT-PREM', name: 'OTT Premium Pack – Sports & Movies', mrc: 12 },
+      { id: 'ADD-STB', name: 'Additional Set-top Box', mrc: 8 },
+      { id: 'ADD-MESH', name: 'Mesh Wi-Fi Extender', mrc: 4 },
+      { id: 'ADD-MESH-NODE', name: 'Extra Mesh Node', mrc: 6 },
+      { id: 'ADD-STATIC-IP', name: 'Static IP', mrc: 8 },
+    ],
   },
   {
     id: 'OFF-R03', name: 'FiberHome 1 Gbps', category: 'FTTH Broadband', segment: 'Residential', speed: '1 Gbps', mrc: 1999, nrc: 0, contractMonths: 12, techRequired: ['FTTH'],
-    addOns: [{ id: 'ADD-OTT', name: 'OTT Entertainment Pack', mrc: 199 }, { id: 'ADD-SIP', name: 'Static IP', mrc: 299 }],
+    addOns: [
+      { id: 'ADD-OTT', name: 'OTT Entertainment Pack', mrc: 5 },
+      { id: 'ADD-OTT-PREM', name: 'OTT Premium Pack – Sports & Movies', mrc: 12 },
+      { id: 'ADD-STB', name: 'Additional Set-top Box', mrc: 8 },
+      { id: 'ADD-STATIC-IP', name: 'Static IP', mrc: 8 },
+    ],
   },
   { id: 'OFF-R04', name: 'FiberHome Lite 50 Mbps', category: 'FTTH Broadband', segment: 'Residential', speed: '50 Mbps', mrc: 499, nrc: 500, contractMonths: 6, techRequired: ['FTTH', 'FTTB', 'Ethernet'] },
   { id: 'OFF-P01', name: 'Common Area Wi-Fi', category: 'Managed Services', segment: 'Business', mrc: 15000, nrc: 20000, contractMonths: 36 },
   { id: 'OFF-P02', name: 'CCTV IoT Connect', category: 'IoT', segment: 'Business', mrc: 6500, nrc: 0, contractMonths: 24 },
   { id: 'OFF-P03', name: 'Lift Emergency Voice Lines', category: 'Voice', segment: 'Business', mrc: 2400, nrc: 0, contractMonths: 24 },
+  {
+    id: 'OFF-V01', name: 'FixedVoice Home', category: 'Voice', segment: 'Residential', mrc: 12, nrc: 0, contractMonths: 12,
+    addOns: [
+      { id: 'ADD-VOICEMAIL', name: 'Voicemail', mrc: 3 },
+      { id: 'ADD-INTL', name: 'International Calling Plan – 200 mins/mo', mrc: 10 },
+    ],
+  },
+  { id: 'OFF-P04', name: 'Property Voice Lines Pack', category: 'Voice', segment: 'Business', mrc: 18, nrc: 0, contractMonths: 24 },
   { id: 'OFF-M01', name: 'Mobile Postpaid 599 (5G, 75 GB)', category: 'Mobile', segment: 'Residential', mrc: 599, nrc: 0, contractMonths: 0 },
   { id: 'OFF-M02', name: 'Mobile Prepaid 299 (28 days)', category: 'Mobile', segment: 'Residential', mrc: 299, nrc: 0, contractMonths: 0 },
 ];
@@ -148,6 +176,7 @@ export function buildSeed(): Database {
     occupancies: [],
     offerings: OFFERINGS,
     services: [],
+    phoneNumbers: [] as PhoneNumber[],
     qualifications: [],
     orders: [],
     requests: [],
@@ -403,6 +432,47 @@ export function buildSeed(): Database {
     S({ offeringId: off, owner: { kind: 'customer', id }, location: `Mobile ${phone}`, billingAccountId: ba, status: 'Active', activationDate: since, mrc: off === 'OFF-M01' ? 599 : 299, equipment: [{ type: '5G SIM', serial: `8991 2310 00${i}5 ${last4}` }] }, 'TEN-RES');
   });
   const snehaSrv = S({ offeringId: 'OFF-R02', owner: { kind: 'customer', id: sneha.id }, unitId: 'PRP-GV-A-104', propertyId: 'PRP-GV', location: 'Green Valley Residences, A-104', billingAccountId: 'BA-7001', status: 'Active', activationDate: '2024-09-02', contractEnd: '2026-12-01', mrc: 999, addOns: ['ADD-OTT'], equipment: [{ type: 'GPON ONT + Wi-Fi 6', serial: 'ONT48213377' }] }, 'TEN-EVG');
+  // Pre-assigned phone numbers for Green Valley Tower A units (one per unit).
+  const GV_NUMBERS: [string, string][] = [
+    ['PRP-GV-A-101', '+1-555-0101'],
+    ['PRP-GV-A-102', '+1-555-0102'],
+    ['PRP-GV-A-103', '+1-555-0103'],
+    ['PRP-GV-A-104', '+1-555-0104'],
+    ['PRP-GV-A-201', '+1-555-0201'],
+    ['PRP-GV-A-202', '+1-555-0202'],
+    ['PRP-GV-A-203', '+1-555-0203'],
+    ['PRP-GV-A-204', '+1-555-0204'],
+    ['PRP-GV-A-301', '+1-555-0301'],
+    ['PRP-GV-A-302', '+1-555-0302'],
+    ['PRP-GV-A-303', '+1-555-0303'],
+    ['PRP-GV-A-304', '+1-555-0304'],
+  ];
+  GV_NUMBERS.forEach(([unitId, number]) => {
+    const id = `PN-GV-${unitId.split('PRP-GV-')[1]}`;
+    db.phoneNumbers.push({ id, number, propertyId: 'PRP-GV', unitId, status: 'Available', serviceInstanceId: undefined });
+  });
+  // Sneha's FixedVoice Home service — activates her pre-assigned number.
+  const voiceSvc = S(
+    {
+      offeringId: 'OFF-V01',
+      owner: { kind: 'customer', id: sneha.id },
+      unitId: 'PRP-GV-A-104',
+      propertyId: 'PRP-GV',
+      location: 'Green Valley Residences, A-104',
+      billingAccountId: 'BA-7001',
+      status: 'Active',
+      activationDate: '2024-09-02',
+      contractEnd: addMonths('2024-09-02', 12),
+      mrc: 12,
+      addOns: [],
+      equipment: [],
+      phoneNumber: '+1-555-0104',
+    },
+    'TEN-EVG',
+  );
+  // Mark the phone number as Active and link to service.
+  const snehaNum = db.phoneNumbers.find((n) => n.unitId === 'PRP-GV-A-104');
+  if (snehaNum) { snehaNum.status = 'Active'; snehaNum.serviceInstanceId = voiceSvc; }
   // A-101..A-103 vacant + ready so bulk activation has candidates in Tower A.
   for (const n of ['A-103', 'A-105', 'A-201', 'A-202']) {
     clearUnit(`PRP-GV-${n}`);
