@@ -1216,7 +1216,7 @@ export async function checkAvailability(target: { kind: 'unit'; unitId: string }
       } else {
         result = 'Service Available';
         reason = `${p.technology} ready at ${u.number}; ${p.capacityPorts - usedPorts} access ports free.`;
-        eligible = db.offerings.filter((o) => o.segment === 'Residential' && o.category === 'FTTH Broadband' && (!o.techRequired || o.techRequired.includes(p.technology))).map((o) => o.id);
+        eligible = db.offerings.filter((o) => o.segment === 'Residential' && (o.category === 'FTTH Broadband' || o.id === 'OFF-V01') && (!o.techRequired || o.techRequired.includes(p.technology))).map((o) => o.id);
       }
     }
   } else {

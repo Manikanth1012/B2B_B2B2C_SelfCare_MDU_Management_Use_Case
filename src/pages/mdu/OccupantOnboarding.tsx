@@ -1,10 +1,12 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import clsx from 'clsx';
-import { BadgeCheck, CheckCircle2, FileUp, Fingerprint, KeyRound, Search, ShieldCheck, Smartphone, UserPlus, Wallet } from 'lucide-react';
+import { BadgeCheck, CheckCircle2, FileUp, Fingerprint, KeyRound, Phone, Search, ShieldCheck, Smartphone, UserPlus, Wallet } from 'lucide-react';
 import {
   completeOccupantKyc,
   fetchDigiLocker,
+  getPhoneNumbers,
   lookupCustomer,
+  offerings,
   onboardOccupant,
   requestAadhaarOtp,
   sendConsentOtp,
@@ -16,7 +18,7 @@ import {
 } from '../../api/api';
 import type { KycRecord } from '../../data/types';
 import { TODAY } from '../../data/seed';
-import { date } from '../../lib/format';
+import { date, money } from '../../lib/format';
 import { Button, Field, inputCls, Modal, SimNote, Stat, StatusBadge, Stepper, useAction } from '../../components/ui';
 
 /* ---------------- KYC badge ---------------- */
@@ -151,11 +153,16 @@ export function OccupantOnboardingModal({ unitId, unitLabel, currentOccupant, on
   const [dupe, setDupe] = useState<CustomerMatch | null>(null);
   const [kyc, setKyc] = useState<KycResult | null>(null);
   const [occ, setOcc] = useState({ role: 'Tenant' as 'Owner' | 'Tenant' | 'Authorised Contact', from: TODAY, invitePortal: true });
+  const [selectedServices, setSelectedServices] = useState<string[]>([]);
   const [done, setDone] = useState<Awaited<ReturnType<typeof onboardOccupant>> | null>(null);
   const { run, busy } = useAction();
 
-  const steps = path === 'new' ? ['Find customer', 'Customer details', 'eKYC', 'Occupancy', 'Review'] : ['Find customer', 'Customer consent', 'Occupancy', 'Review'];
-  const stepId = path === 'new' ? ['find', 'details', 'ekyc', 'occupancy', 'review'][step] : ['find', 'consent', 'occupancy', 'review'][step];
+  const propertyId = unitId.split('-').slice(0, 2).join('-');
+  const assignedNumber = useMemo(() => getPhoneNumbers(propertyId).find((n) => n.unitId === unitId && n.status === 'Available')?.number, [propertyId, unitId]);
+  const voiceOffering = offerings().find((o) => o.id === 'OFF-V01');
+
+  const steps = path === 'new' ? ['Find customer', 'Customer details', 'eKYC', 'Occupancy', 'Services', 'Review'] : ['Find customer', 'Customer consent', 'Occupancy', 'Services', 'Review'];
+  const stepId = path === 'new' ? ['find', 'details', 'ekyc', 'occupancy', 'services', 'review'][step] : ['find', 'consent', 'occupancy', 'services', 'review'][step];
 
   const search = async () => {
     const r = await run(() => lookupCustomer(query));
@@ -184,7 +191,7 @@ export function OccupantOnboardingModal({ unitId, unitLabel, currentOccupant, on
       setStep(2);
     }
   };
-  const canNext = { find: false, consent: !!consent, details: false, ekyc: !!kyc && kyc.record.status !== 'Failed', occupancy: !!occ.from, review: true }[stepId];
+  const canNext = { find: false, consent: !!consent, details: false, ekyc: !!kyc && kyc.record.status !== 'Failed', occupancy: !!occ.from, services: true, review: true }[stepId];
   const submit = async () => {
     const r = await run(() =>
       onboardOccupant(unitId, path === 'existing' ? { mode: 'existing', customerId: match!.customerId, consentToken: consent!.consentToken, ...occ } : { mode: 'new', ...cust, kycToken: kyc!.kycToken, dataConsent: true, ...occ }),
@@ -248,7 +255,7 @@ export function OccupantOnboardingModal({ unitId, unitLabel, currentOccupant, on
 
       {stepId === 'find' && (
         <div>
-          <p className="mb-3 text-sm text-ink-700">Search the operator’s customer base first, so an existing customer (e.g. a Mobile subscriber) is reused rather than duplicated.</p>
+          <p className="mb-3 text-sm text-ink-700">Search the operator's customer base first, so an existing customer (e.g. a Mobile subscriber) is reused rather than duplicated.</p>
           <form onSubmit={(e) => (e.preventDefault(), search())} className="flex gap-2">
             <input className={inputCls} value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Mobile number, email or customer ID (e.g. 98450 77001)" aria-label="Customer search" />
             <Button loading={busy} disabled={query.trim().length < 4}>
@@ -289,7 +296,7 @@ export function OccupantOnboardingModal({ unitId, unitLabel, currentOccupant, on
                   </Button>
                 </div>
               ))}
-              {!matches.length && <p className="rounded-md bg-[#D3EAF0] px-5 py-4 text-sm text-ink-700">No customer found with “{query}”. This person is not yet registered with us.</p>}
+              {!matches.length && <p className="rounded-md bg-[#D3EAF0] px-5 py-4 text-sm text-ink-700">No customer found with "{query}". This person is not yet registered with us.</p>}
             </div>
           )}
           <div className="mt-5 border-t border-line-100 pt-4">
@@ -303,7 +310,7 @@ export function OccupantOnboardingModal({ unitId, unitLabel, currentOccupant, on
       {stepId === 'consent' && match && (
         <div className="space-y-4">
           <p className="text-sm text-ink-700">
-            Profile details stay masked until the customer approves the link. We’ll send a one-time password to their registered mobile <b>{match.maskedPhone}</b>.
+            Profile details stay masked until the customer approves the link. We'll send a one-time password to their registered mobile <b>{match.maskedPhone}</b>.
           </p>
           {!consent && (
             <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
@@ -400,6 +407,35 @@ export function OccupantOnboardingModal({ unitId, unitLabel, currentOccupant, on
         </div>
       )}
 
+      {stepId === 'services' && (
+        <div className="space-y-4">
+          <p className="text-sm text-ink-700">Optionally include FixedVoice Home as part of this occupant's connection. Services can also be ordered separately after onboarding.</p>
+          {voiceOffering && (
+            <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-line-100 p-4 hover:border-royal/40">
+              <input
+                type="checkbox"
+                checked={selectedServices.includes('OFF-V01')}
+                onChange={(e) => setSelectedServices(e.target.checked ? [...selectedServices, 'OFF-V01'] : selectedServices.filter((id) => id !== 'OFF-V01'))}
+                className="h-4 w-4 rounded"
+              />
+              <Phone className="h-5 w-5 shrink-0 text-royal-700" />
+              <div>
+                <p className="font-semibold text-navy">FixedVoice Home</p>
+                <p className="text-sm text-ink-600">Fixed landline — {money(voiceOffering.mrc, 'USD')}/mo · Pre-assigned number activated on connection</p>
+              </div>
+            </label>
+          )}
+          {selectedServices.includes('OFF-V01') && assignedNumber && (
+            <p className="rounded-lg bg-green-50 p-3 text-sm text-green-800">
+              Pre-assigned number for this unit: <b>{assignedNumber}</b>. It will be activated when the service goes live.
+            </p>
+          )}
+          {selectedServices.includes('OFF-V01') && !assignedNumber && (
+            <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">No pre-assigned number found for this unit. A number will be allocated at activation.</p>
+          )}
+        </div>
+      )}
+
       {stepId === 'review' && (
         <div className="space-y-4">
           <dl className="grid gap-4 sm:grid-cols-3">
@@ -415,7 +451,19 @@ export function OccupantOnboardingModal({ unitId, unitLabel, currentOccupant, on
             <Stat label="From">{date(occ.from)}</Stat>
             <Stat label="Self-care invite">{occ.invitePortal ? 'Yes' : 'No'}</Stat>
           </dl>
-          {currentOccupant && <p className="text-sm text-amber-800">{currentOccupant}’s occupancy will end on the day before {date(occ.from)}.</p>}
+          {selectedServices.includes('OFF-V01') && voiceOffering && (
+            <div className="rounded-xl border border-royal/20 bg-royal-50 p-4">
+              <p className="mb-1 flex items-center gap-2 text-sm font-semibold text-navy">
+                <Phone className="h-4 w-4" /> FixedVoice Home included
+              </p>
+              <p className="text-sm text-ink-700">
+                {money(voiceOffering.mrc, 'USD')}/mo · {voiceOffering.contractMonths}-month term
+                {assignedNumber && <> · Number: <b>{assignedNumber}</b></>}
+              </p>
+              <p className="mt-1 text-xs text-ink-500">Service will be ordered separately after occupant is confirmed. This selection is for planning reference.</p>
+            </div>
+          )}
+          {currentOccupant && <p className="text-sm text-amber-800">{currentOccupant}'s occupancy will end on the day before {date(occ.from)}.</p>}
           <SimNote>Simulated eKYC and OTP gateways. Real deployments call UIDAI (via an AUA/KUA), DigiLocker and SMS providers. Only masked identifiers and the consent log are stored.</SimNote>
         </div>
       )}

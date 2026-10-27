@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import clsx from 'clsx';
-import { CheckCircle2, Radar } from 'lucide-react';
-import { can, checkAvailability, currentUser, getUnit, listAccounts, listBillingAccounts, listProperties, listUnits, offerings, submitNewConnection } from '../../api/api';
+import { CheckCircle2, Phone, Radar } from 'lucide-react';
+import { can, checkAvailability, currentUser, getPhoneNumbers, getUnit, listAccounts, listBillingAccounts, listProperties, listUnits, offerings, submitNewConnection } from '../../api/api';
 import type { ServiceQualification } from '../../data/types';
 import { TODAY } from '../../data/seed';
 import { useApi } from '../../lib/hooks';
@@ -47,6 +47,10 @@ export function NewConnection() {
   const unit = useApi(() => (unitId ? getUnit(unitId) : Promise.resolve(null)), [unitId]);
   const accounts = useApi(() => (canAcc ? listAccounts() : Promise.resolve([])));
   const bills = useApi(() => listBillingAccounts({ includeResidents: true }).catch(() => []));
+
+  const propertyIdForNumbers = unit.data?.propertyId ?? '';
+  const phoneNums = useApi(() => Promise.resolve(propertyIdForNumbers ? getPhoneNumbers(propertyIdForNumbers) : []), [propertyIdForNumbers]);
+  const assignedNumber = phoneNums.data?.find((n) => n.unitId === unitId && n.status === 'Available')?.number;
 
   useEffect(() => {
     if (kind === 'unit' && unit.data) setAddress(`${unit.data.propertyName}, ${unit.data.number}`);
@@ -174,10 +178,11 @@ export function NewConnection() {
             {eligible.map((o) => (
               <label key={o.id} className={clsx('flex cursor-pointer items-center gap-3 rounded-md border p-3 text-sm', offeringId === o.id ? 'border-crimson bg-crimson-50' : 'border-line-200')}>
                 <input type="radio" checked={offeringId === o.id} onChange={() => (setOfferingId(o.id), setAddOns([]))} />
+                {o.id === 'OFF-V01' && <Phone className="h-4 w-4 shrink-0 text-royal-700" />}
                 <span className="flex-1">
                   <span className="font-medium text-navy">{o.name}</span>
                   <span className="block text-xs text-slate-500">
-                    {o.speed ?? o.category} · {o.contractMonths}-month term
+                    {o.id === 'OFF-V01' ? 'Fixed landline' : (o.speed ?? o.category)} · {o.contractMonths}-month term
                   </span>
                 </span>
                 <span className="text-right font-semibold">
@@ -186,6 +191,11 @@ export function NewConnection() {
                 </span>
               </label>
             ))}
+            {offeringId === 'OFF-V01' && assignedNumber && (
+              <p className="mt-2 rounded-lg bg-green-50 p-3 text-sm text-green-800">
+                Your pre-assigned number: <b>{assignedNumber}</b>. It will be activated when your service goes live.
+              </p>
+            )}
             {offering?.addOns && (
               <div>
                 <p className="mb-1 text-sm font-semibold text-navy">Add-ons</p>

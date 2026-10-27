@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import clsx from 'clsx';
+import { Phone } from 'lucide-react';
 import { getSettings, listProperties, listUnits, offerings, previewBulk, submitBulk, type BulkInput, type BulkPreview } from '../../api/api';
 import { TODAY } from '../../data/seed';
 import { useApi } from '../../lib/hooks';
@@ -21,6 +22,7 @@ export function BulkActivation() {
   const [common, setCommon] = useState('OFF-R02');
   const [perUnit, setPerUnit] = useState<Record<string, string>>({});
   const [billingResp, setBillingResp] = useState<'property' | 'resident'>('property');
+  const [includeVoice, setIncludeVoice] = useState(false);
   const [from, setFrom] = useState('2026-10-28');
   const [preview, setPreview] = useState<BulkPreview | null>(null);
   const [step, setStep] = useState(params.get('units') ? 2 : params.get('property') ? 1 : 0);
@@ -34,6 +36,7 @@ export function BulkActivation() {
   if (props.error) return <ErrorState error={props.error} />;
   if (!props.data) return <Loading />;
   const resi = offerings().filter((o) => o.segment === 'Residential' && o.category === 'FTTH Broadband' && (!prop || !o.techRequired || o.techRequired.includes(prop.technology)));
+  const voiceOffering = offerings().find((o) => o.id === 'OFF-V01');
   const input: BulkInput = { propertyId: pid, unitIds: sel, plan: planMode === 'common' ? { mode: 'common', offeringId: common } : { mode: 'per-unit', map: Object.fromEntries(sel.map((u) => [u, perUnit[u] ?? common])) }, billing: billingResp, appointmentFrom: from };
   const candidates = (units.data ?? []).filter((u) => (tower === 'All' || u.building === tower) && (u.connectivity === 'Ready for Service' || u.connectivity === 'Network Not Ready'));
   const towers = [...new Set((units.data ?? []).map((u) => u.building))];
@@ -120,6 +123,24 @@ export function BulkActivation() {
                 ))}
               </div>
             )}
+            {voiceOffering && (
+              <div className="border-t border-line-100 pt-4">
+                <p className="mb-2 text-sm font-semibold text-navy">Add-ons</p>
+                <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-line-100 p-4 hover:border-royal/40">
+                  <input
+                    type="checkbox"
+                    checked={includeVoice}
+                    onChange={(e) => setIncludeVoice(e.target.checked)}
+                    className="h-4 w-4 rounded"
+                  />
+                  <Phone className="h-5 w-5 shrink-0 text-royal-700" />
+                  <div>
+                    <p className="font-semibold text-navy">Include FixedVoice Home</p>
+                    <p className="text-sm text-ink-600">Activates pre-assigned phone numbers for each unit · +{money(voiceOffering.mrc, 'USD')}/mo per unit</p>
+                  </div>
+                </label>
+              </div>
+            )}
           </div>
         )}
 
@@ -147,9 +168,15 @@ export function BulkActivation() {
             <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
               <Kpi label="Eligible units" value={preview.eligible.length} tone="green" />
               <Kpi label="Rejected at check" value={preview.ineligible.length} tone={preview.ineligible.length ? 'red' : 'default'} />
-              <Kpi label="New MRC" value={money(preview.mrcTotal)} />
+              <Kpi label="New MRC" value={money(preview.mrcTotal + (includeVoice && voiceOffering ? voiceOffering.mrc * preview.eligible.length : 0))} />
               <Kpi label="One-time charges" value={money(preview.nrcTotal)} />
             </div>
+            {includeVoice && voiceOffering && preview.eligible.length > 0 && (
+              <p className="rounded-lg bg-royal-50 p-3 text-sm text-royal-800">
+                <Phone className="mr-1 inline h-4 w-4" />
+                FixedVoice Home included for <b>{preview.eligible.length}</b> unit{preview.eligible.length !== 1 ? 's' : ''} · +{money(voiceOffering.mrc * preview.eligible.length, 'USD')}/mo total
+              </p>
+            )}
             <div className="grid gap-4 lg:grid-cols-2">
               <div>
                 <p className="mb-1 text-sm font-semibold text-navy">Eligible</p>
