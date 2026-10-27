@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Network, PhoneCall, PlayCircle, Radio, Wifi } from 'lucide-react';
-import { can, getService, listInvoices, offerings, requestServiceChange } from '../../api/api';
+import { can, getService, listInvoices, offerings, removeAddOn, requestServiceChange } from '../../api/api';
 import { TODAY } from '../../data/seed';
 import { useApi } from '../../lib/hooks';
 import { date, money } from '../../lib/format';
@@ -21,9 +21,15 @@ export function ServiceDetail() {
     const a = params.get('action');
     if (a === 'plan' || a === 'suspend' || a === 'resume') setModal(a);
   }, [params]);
+  const { run: runRemove, busy: removeBusy } = useAction();
+
   if (q.error) return <ErrorState error={q.error} />;
   if (!q.data) return <Loading />;
   const s = q.data;
+
+  async function handleRemoveAddOn(addOnId: string) {
+    await runRemove(() => Promise.resolve(removeAddOn(s.id, addOnId)), 'Add-on removed');
+  }
   const close = () => {
     setModal(null);
     setParams({}, { replace: true });
@@ -99,7 +105,18 @@ export function ServiceDetail() {
               <p className="text-lg font-semibold text-navy">{a.name}</p>
               <p className="mt-1 text-sm text-ink-600">{money(a.mrc, s.currency)} / month</p>
             </div>
-            <StatusBadge status="Active" />
+            <div className="flex items-center justify-between">
+              <StatusBadge status="Active" />
+              {order && (
+                <button
+                  disabled={removeBusy || s.status !== 'Active'}
+                  onClick={() => handleRemoveAddOn(a.id)}
+                  className="text-xs font-bold text-crimson hover:underline disabled:opacity-40"
+                >
+                  Remove
+                </button>
+              )}
+            </div>
           </div>
         ))}
         {order && (
