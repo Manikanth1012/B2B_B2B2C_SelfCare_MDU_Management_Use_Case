@@ -272,6 +272,7 @@ export interface ServiceInstance {
   addOns: string[];
   equipment: { type: string; serial: string }[];
   pendingChange?: string;
+  phoneNumber?: string;
 }
 
 export type QualificationResult = 'Service Available' | 'Additional Network Work Required' | 'Service Not Available';
@@ -283,6 +284,15 @@ export interface ServiceQualification {
   reason: string;
   eligibleOfferingIds: ID[];
   checkedAt: ISODate;
+}
+
+export interface PhoneNumber {
+  id: ID;
+  number: string;
+  propertyId: ID;
+  unitId: ID;
+  status: 'Available' | 'Active' | 'Reserved';
+  serviceInstanceId?: ID;
 }
 
 export interface ProductOrder {
@@ -482,6 +492,7 @@ export interface Database {
   occupancies: OccupancyAssignment[];
   offerings: ProductOffering[];
   services: ServiceInstance[];
+  phoneNumbers: PhoneNumber[];
   qualifications: ServiceQualification[];
   orders: ProductOrder[];
   requests: ServiceRequest[];
