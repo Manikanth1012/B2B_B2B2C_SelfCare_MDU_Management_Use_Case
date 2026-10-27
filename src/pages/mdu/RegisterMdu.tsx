@@ -177,8 +177,8 @@ export function RegisterMdu() {
             <Field label="Network readiness" hint="‘Ready’ marks every generated unit as ready for service">
               <Select label="Readiness" value={f.readiness} onChange={(v) => setF({ ...f, readiness: v as RegisterPropertyInput['readiness'] })} options={['Ready', 'Partially Ready', 'Survey Pending', 'Not Ready']} />
             </Field>
-            <Field label="Available capacity (access ports)" error={err('capacityPorts')} hint={f.capacityPorts < totalUnits ? `Below unit count (${totalUnits}); expansion will be needed for full take-up` : undefined}>
-              <input type="number" className={inputCls} value={f.capacityPorts} onChange={(e) => setF({ ...f, capacityPorts: Number(e.target.value) })} />
+            <Field label="Total access ports" hint={`Calculated from OLT configuration below: ${f.olts.reduce((a, o) => a + o.ports, 0)} ports total${f.olts.reduce((a, o) => a + o.ports, 0) < totalUnits ? ` — below unit count (${totalUnits}); expansion needed for full take-up` : ''}`}>
+              <input type="number" className={inputCls} value={f.olts.reduce((a, o) => a + o.ports, 0) || f.capacityPorts} disabled />
             </Field>
             <Field label="Planned activation date" error={err('plannedActivation')}>
               <input type="date" className={inputCls} value={f.plannedActivation} onChange={(e) => setF({ ...f, plannedActivation: e.target.value })} />
@@ -236,7 +236,10 @@ export function RegisterMdu() {
                 {f.technology} · {f.readiness} · {f.capacityPorts} ports
               </Stat>
               <Stat label="OLTs">
-                {f.olts.map((o) => `${o.name} (${o.ports}p${o.location ? ', ' + o.location : ''})`).join(' · ')}
+                {f.olts.map((o, i) => {
+                  const served = f.towers.filter((_, ti) => ti % f.olts.length === i).map((t) => t.name).join(', ');
+                  return `${o.name}: ${o.ports}p${o.location ? ' @ ' + o.location : ''}${served ? ' → ' + served : ''}`;
+                }).join(' · ')}
               </Stat>
               <Stat label="Planned activation">{f.plannedActivation}</Stat>
               <Stat label="Billing">{f.billingModel}</Stat>

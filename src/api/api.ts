@@ -548,6 +548,13 @@ export function connectivityOf(unit: Unit, services: ServiceInstance[]): Connect
   return unit.networkReadiness === 'Ready' ? 'Ready for Service' : 'Network Not Ready';
 }
 
+export interface OltStat {
+  name: string;
+  ports: number;
+  location: string;
+  usedPorts: number;
+}
+
 export interface PropertyRow extends Property {
   buildings: number;
   totalUnits: number;
@@ -560,6 +567,7 @@ export interface PropertyRow extends Property {
   suspended: number;
   openTickets: number;
   managerName: string;
+  oltStats: OltStat[];
 }
 
 function propertyRow(db: Database, p: Property): PropertyRow {
@@ -568,6 +576,13 @@ function propertyRow(db: Database, p: Property): PropertyRow {
   const byUnit = new Map<string, ServiceInstance[]>();
   services.forEach((s) => s.unitId && byUnit.set(s.unitId, [...(byUnit.get(s.unitId) ?? []), s]));
   const statuses = units.map((u) => connectivityOf(u, byUnit.get(u.id) ?? []));
+  const activeUnitIds = new Set(services.filter((s) => s.unitId && s.status !== 'Terminated').map((s) => s.unitId!));
+  const oltStats: OltStat[] = (p.olts ?? []).map((o) => ({
+    name: o.name,
+    ports: o.ports,
+    location: o.location,
+    usedPorts: units.filter((u) => u.oltName === o.name && activeUnitIds.has(u.id)).length,
+  }));
   return {
     ...p,
     buildings: db.buildings.filter((b) => b.propertyId === p.id).length,
@@ -581,6 +596,7 @@ function propertyRow(db: Database, p: Property): PropertyRow {
     vacant: units.filter((u) => u.occupancy === 'Vacant').length,
     openTickets: db.requests.filter((r) => r.propertyId === p.id && !['Completed', 'Rejected', 'Cancelled', 'Failed'].includes(r.status)).length,
     managerName: db.users.find((u) => u.id === p.managerUserId)?.name ?? '—',
+    oltStats,
   };
 }
 
@@ -1042,8 +1058,10 @@ export async function registerProperty(input: RegisterPropertyInput): Promise<st
       d.billingAccounts.push({ id: masterBillingId, tenantId, name: `${input.name.trim()} ${input.billingModel === 'Bulk Contract' ? 'Bulk Contract' : 'Master Billing'}`, type: 'Property Master', payerRef: { kind: 'property', id }, currency: 'USD', billCycleDay: 1, paymentMethod: 'Bank Transfer', invoiceDelivery: 'Email', paperless: true, status: 'Active', creditLimit: 500000 });
     }
     const equipStr = input.olts.length ? input.olts.map((o) => `${o.name} (${o.ports} ports${o.location ? ', ' + o.location : ''})`).join('; ') : '';
-    d.properties.push({ id, tenantId, name: input.name.trim(), type: input.type, managementOrg: input.managementOrg, managerUserId: user.roleId === 'MDU_PM' ? user.id : 'U-200', address: input.address, city: input.city, geo: input.lat && input.lng ? { lat: input.lat, lng: input.lng } : undefined, contactPhone: input.contactPhone, contactEmail: input.contactEmail, technology: input.technology, readiness: input.readiness, capacityPorts: input.capacityPorts, equipment: equipStr, olts: input.olts, plannedActivation: input.plannedActivation, billingModel: input.billingModel, masterBillingId, status: 'Onboarding', createdAt: TODAY });
+    const totalOltPorts = input.olts.reduce((a, o) => a + o.ports, 0);
+    d.properties.push({ id, tenantId, name: input.name.trim(), type: input.type, managementOrg: input.managementOrg, managerUserId: user.roleId === 'MDU_PM' ? user.id : 'U-200', address: input.address, city: input.city, geo: input.lat && input.lng ? { lat: input.lat, lng: input.lng } : undefined, contactPhone: input.contactPhone, contactEmail: input.contactEmail, technology: input.technology, readiness: input.readiness, capacityPorts: totalOltPorts || input.capacityPorts, equipment: equipStr, olts: input.olts, plannedActivation: input.plannedActivation, billingModel: input.billingModel, masterBillingId, status: 'Onboarding', createdAt: TODAY });
     input.towers.forEach((t, ti) => {
+      const oltName = input.olts.length ? input.olts[ti % input.olts.length].name : undefined;
       const prefix = /^tower\s+/i.test(t.name) ? t.name.replace(/^tower\s+/i, '').trim() : t.name.trim();
       const code = (prefix.split(/\s+/)[0] || String.fromCharCode(65 + ti)).slice(0, 4).toUpperCase();
       const bid = `${id}-T${code}`;
@@ -1053,7 +1071,7 @@ export async function registerProperty(input: RegisterPropertyInput): Promise<st
         d.floors.push({ id: fid, buildingId: bid, number: f });
         for (let n = 1; n <= t.unitsPerFloor; n++) {
           const number = `${code}-${f}${String(n).padStart(2, '0')}`;
-          d.units.push({ id: `${id}-${number}`, propertyId: id, buildingId: bid, floorId: fid, number, unitType: '2BHK', occupancy: 'Unknown', networkReadiness: input.readiness === 'Ready' ? 'Ready' : 'Not Ready' });
+          d.units.push({ id: `${id}-${number}`, propertyId: id, buildingId: bid, floorId: fid, number, unitType: '2BHK', occupancy: 'Unknown', networkReadiness: input.readiness === 'Ready' ? 'Ready' : 'Not Ready', ...(oltName ? { oltName } : {}) });
         }
       }
     });
@@ -1209,14 +1227,19 @@ export async function checkAvailability(target: { kind: 'unit'; unitId: string }
       reason = `${p.technology} riser/drop not yet built to ${u.number}. Field survey and civil work required (est. 15–25 days).`;
       eligible = [];
     } else {
-      const usedPorts = db.services.filter((s) => s.propertyId === p.id && s.unitId && s.status !== 'Terminated').length;
-      if (usedPorts >= p.capacityPorts) {
+      const olt = u.oltName && p.olts ? p.olts.find((o) => o.name === u.oltName) : undefined;
+      const usedPorts = olt
+        ? db.services.filter((s) => s.propertyId === p.id && s.unitId && s.status !== 'Terminated' && db.units.find((x) => x.id === s.unitId)?.oltName === olt.name).length
+        : db.services.filter((s) => s.propertyId === p.id && s.unitId && s.status !== 'Terminated').length;
+      const totalPorts = olt ? olt.ports : p.capacityPorts;
+      const oltLabel = olt ? ` on ${olt.name}` : '';
+      if (usedPorts >= totalPorts) {
         result = 'Additional Network Work Required';
-        reason = `All ${p.capacityPorts} access ports at ${p.name} are in use. Capacity expansion required.`;
+        reason = `All ${totalPorts} access ports${oltLabel} are in use. Capacity expansion required.`;
         eligible = [];
       } else {
         result = 'Service Available';
-        reason = `${p.technology} ready at ${u.number}; ${p.capacityPorts - usedPorts} access ports free.`;
+        reason = `${p.technology} ready at ${u.number}; ${totalPorts - usedPorts} access ports free${oltLabel}.`;
         eligible = db.offerings.filter((o) => o.segment === 'Residential' && (o.category === 'FTTH Broadband' || o.id === 'OFF-V01') && (!o.techRequired || o.techRequired.includes(p.technology))).map((o) => o.id);
       }
     }
@@ -1386,8 +1409,17 @@ export async function previewBulk(input: BulkInput): Promise<BulkPreview> {
   requirePerm(db, user, 'service.bulk');
   if (!scope.properties.has(input.propertyId)) throw new AuthError('Property outside your scope.');
   const p = db.properties.find((x) => x.id === input.propertyId)!;
-  const usedPorts = db.services.filter((s) => s.propertyId === p.id && s.unitId && s.status !== 'Terminated').length;
-  let free = p.capacityPorts - usedPorts;
+  // Per-OLT free-port tracking (falls back to property-level if no OLTs defined)
+  const freeByOlt = new Map<string | null, number>();
+  if (p.olts && p.olts.length) {
+    for (const o of p.olts) {
+      const used = db.services.filter((s) => s.propertyId === p.id && s.unitId && s.status !== 'Terminated' && db.units.find((u) => u.id === s.unitId)?.oltName === o.name).length;
+      freeByOlt.set(o.name, o.ports - used);
+    }
+  } else {
+    const usedPorts = db.services.filter((s) => s.propertyId === p.id && s.unitId && s.status !== 'Terminated').length;
+    freeByOlt.set(null, p.capacityPorts - usedPorts);
+  }
   const out: BulkPreview = { eligible: [], ineligible: [], mrcTotal: 0, nrcTotal: 0 };
   for (const id of input.unitIds) {
     const u = db.units.find((x) => x.id === id);
@@ -1396,6 +1428,8 @@ export async function previewBulk(input: BulkInput): Promise<BulkPreview> {
     const o = db.offerings.find((x) => x.id === offId);
     const occ = db.occupancies.find((x) => x.unitId === id && !x.validTo);
     const hasSrv = db.services.some((s) => s.unitId === id && s.status !== 'Terminated' && s.offeringId.startsWith('OFF-R'));
+    const oltKey = (p.olts && u.oltName) ? u.oltName : null;
+    const free = freeByOlt.get(oltKey) ?? 0;
     let reason = '';
     if (hasSrv) reason = 'Already has a broadband subscription';
     else if (u.networkReadiness !== 'Ready') reason = 'Network not ready – riser/drop pending';
@@ -1403,10 +1437,10 @@ export async function previewBulk(input: BulkInput): Promise<BulkPreview> {
     else if (o.techRequired && !o.techRequired.includes(p.technology)) reason = `${o.name} not supported on ${p.technology}`;
     else if (input.billing === 'resident' && !occ) reason = 'Resident billing selected but unit has no occupant';
     else if (input.billing === 'resident' && residentKycProblem(db, occ!.customerId)) reason = `Resident KYC ${db.customers.find((c) => c.id === occ!.customerId)?.kyc.status ?? 'missing'} — eKYC required`;
-    else if (free <= 0) reason = 'No free access port – capacity expansion needed';
+    else if (free <= 0) reason = `No free access port${oltKey ? ` on ${oltKey}` : ''} – capacity expansion needed`;
     if (reason) out.ineligible.push({ unitId: id, number: u.number, reason });
     else {
-      free--;
+      freeByOlt.set(oltKey, free - 1);
       out.eligible.push({ unitId: id, number: u.number, offeringId: o!.id });
       out.mrcTotal += o!.mrc;
       out.nrcTotal += o!.nrc;

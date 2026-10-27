@@ -154,21 +154,43 @@ function Overview({ d }: { d: Awaited<ReturnType<typeof getProperty>> }) {
           <Stat label="Network readiness">
             <StatusBadge status={p.readiness} />
           </Stat>
-          <Stat label="Capacity (access ports)">{p.capacityPorts}</Stat>
-          <Stat label="Distribution equipment">{p.equipment}</Stat>
+          <Stat label="Total access ports">{p.capacityPorts}</Stat>
+          <Stat label="Distribution equipment">{p.equipment || '—'}</Stat>
           <Stat label="Planned / actual activation">{date(p.plannedActivation)}</Stat>
           <Stat label="Billing arrangement">{p.billingModel}</Stat>
         </dl>
       </Card>
       <Card title="Capacity">
-        <p className="mb-1 text-xs text-slate-600">Access ports in use</p>
-        <ProgressBar value={p.connected + p.pending + p.suspended} max={p.capacityPorts} tone="teal" />
-        <p className="mt-1 text-sm font-semibold text-navy">
-          {p.connected + p.pending + p.suspended} / {p.capacityPorts}
-        </p>
-        <p className="mt-4 mb-1 text-xs text-slate-600">Connectivity penetration</p>
-        <ProgressBar value={p.connected} max={p.totalUnits} tone="green" />
-        <p className="mt-1 text-sm font-semibold text-navy">{pct(p.connected, p.totalUnits)}%</p>
+        {p.oltStats && p.oltStats.length > 0 ? (
+          <div className="space-y-4">
+            {p.oltStats.map((o) => (
+              <div key={o.name}>
+                <div className="mb-1 flex items-center justify-between text-xs text-slate-600">
+                  <span className="font-semibold text-navy">{o.name}</span>
+                  <span>{o.location || 'No location set'} · {o.ports} ports total</span>
+                </div>
+                <ProgressBar value={o.usedPorts} max={o.ports} tone="teal" />
+                <p className="mt-1 text-sm font-semibold text-navy">{o.usedPorts} used · {o.ports - o.usedPorts} free</p>
+              </div>
+            ))}
+            <div className="border-t border-line-100 pt-3">
+              <p className="mb-1 text-xs text-slate-600">Connectivity penetration</p>
+              <ProgressBar value={p.connected} max={p.totalUnits} tone="green" />
+              <p className="mt-1 text-sm font-semibold text-navy">{pct(p.connected, p.totalUnits)}%</p>
+            </div>
+          </div>
+        ) : (
+          <>
+            <p className="mb-1 text-xs text-slate-600">Access ports in use</p>
+            <ProgressBar value={p.connected + p.pending + p.suspended} max={p.capacityPorts} tone="teal" />
+            <p className="mt-1 text-sm font-semibold text-navy">
+              {p.connected + p.pending + p.suspended} / {p.capacityPorts}
+            </p>
+            <p className="mt-4 mb-1 text-xs text-slate-600">Connectivity penetration</p>
+            <ProgressBar value={p.connected} max={p.totalUnits} tone="green" />
+            <p className="mt-1 text-sm font-semibold text-navy">{pct(p.connected, p.totalUnits)}%</p>
+          </>
+        )}
       </Card>
       {[
         { t: 'Connectivity breakdown', data: conn },

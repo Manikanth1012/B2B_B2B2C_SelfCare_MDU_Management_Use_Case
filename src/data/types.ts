@@ -217,6 +217,7 @@ export interface Unit {
   occupancy: Occupancy;
   networkReadiness: NetworkReadiness;
   existingServiceRef?: string;
+  oltName?: string; // which OLT serves this unit (if property has olts[])
 }
 
 export interface OccupancyAssignment {
