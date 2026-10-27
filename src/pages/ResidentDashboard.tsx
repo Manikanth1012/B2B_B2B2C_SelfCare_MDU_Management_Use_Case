@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { Headphones, Home, Receipt, Settings as SettingsIcon, Smartphone, Wifi } from 'lucide-react';
+import { Headphones, Home, Phone, Receipt, Settings as SettingsIcon, Smartphone, Wifi } from 'lucide-react';
 import { can, currentUser, listInvoices, listServices } from '../api/api';
 import { useApi } from '../lib/hooks';
 import { date, money } from '../lib/format';
@@ -46,13 +46,14 @@ export function ResidentDashboard() {
           <div className="grid gap-4 sm:grid-cols-2">
             {live.map((s) => {
               const mobile = s.category === 'Mobile';
+              const voice = s.category === 'Voice';
               return (
                 <StatusTile key={s.id} status={s.status} tone={tone(s.status)} onClick={() => nav(`/services/${s.id}`)}>
-                  {mobile ? <Smartphone className="h-8 w-8 text-ink-400" /> : <Wifi className="h-8 w-8 text-ink-400" />}
-                  <p className="mt-3 text-[30px] font-semibold leading-tight text-navy">{mobile ? 'Mobile' : 'Broadband'}</p>
+                  {mobile ? <Smartphone className="h-8 w-8 text-ink-400" /> : voice ? <Phone className="h-8 w-8 text-ink-400" /> : <Wifi className="h-8 w-8 text-ink-400" />}
+                  <p className="mt-3 text-[30px] font-semibold leading-tight text-navy">{mobile ? 'Mobile' : voice ? 'Fixed Voice' : 'Broadband'}</p>
                   <p className="text-sm text-ink-600">{s.offeringName}</p>
                   <p className="mt-3 text-sm font-medium text-ink-400">Service Identifier</p>
-                  <p className="text-lg text-navy">{mobile ? s.location.replace('Mobile ', '') : s.id}</p>
+                  <p className="text-lg text-navy">{mobile ? s.location.replace('Mobile ', '') : voice && s.phoneNumber ? s.phoneNumber : s.id}</p>
                   {s.status === 'Active' && can('service.order') && (
                     <button onClick={(e) => (e.stopPropagation(), nav(`/services/${s.id}?action=suspend`))} className="mt-3 text-[15px] font-medium text-royal hover:underline">
                       Request Service Suspension
