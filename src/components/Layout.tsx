@@ -79,7 +79,7 @@ const NAV: NavGroup[] = [
       { label: 'Portal Users', to: '/users', perm: 'user.manage' },
       { label: 'Roles & Permissions', to: '/users/roles' },
       { label: 'Reports & Analytics', to: '/reports', perm: 'reports.read' },
-      { label: 'Read me · Demo guide', to: '/guide' },
+      { label: 'Read me · Demo guide', to: '/guide', hideFor: ['OPERATOR'] },
     ],
   },
 ];
@@ -230,9 +230,11 @@ function UserMenu() {
               <button onClick={() => (setOpen(false), nav('/settings'))} className="flex-1 rounded-lg px-3 py-2 text-xs font-bold text-royal-700 hover:bg-royal-50">
                 Settings
               </button>
-              <button onClick={() => (setOpen(false), nav('/guide'))} className="flex-1 rounded-lg px-3 py-2 text-xs font-bold text-royal-700 hover:bg-royal-50">
-                Read me
-              </button>
+              {currentUser().roleId !== 'OPERATOR' && (
+                <button onClick={() => (setOpen(false), nav('/guide'))} className="flex-1 rounded-lg px-3 py-2 text-xs font-bold text-royal-700 hover:bg-royal-50">
+                  Read me
+                </button>
+              )}
               <button onClick={() => (setOpen(false), nav('/login'))} className="flex-1 rounded-lg px-3 py-2 text-xs font-bold text-crimson hover:bg-crimson-50">
                 Logout
               </button>
