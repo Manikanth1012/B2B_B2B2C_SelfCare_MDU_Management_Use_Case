@@ -22,6 +22,7 @@ import type {
   KycRecord,
   KycStatus,
   Occupancy,
+  PhoneNumber,
   ProductOrder,
   Property,
   PropertyType,
@@ -1983,4 +1984,85 @@ export async function getProfile() {
   const { db, user, scope } = ctx();
   const root = db.accounts.find((a) => a.tenantId === user.tenantId && a.type === 'Root' && scope.accounts.has(a.id));
   return { user, role: db.roles.find((r) => r.id === user.roleId)!, organisation: root, contacts: root ? db.contacts.filter((c) => c.accountId === root.id) : [], tenant: db.tenants.find((t) => t.id === user.tenantId)! };
+}
+
+/* ======================================================================
+ * Phone Numbers & Add-ons (FixedVoice / MDU)
+ * ==================================================================== */
+
+export function getPhoneNumbers(propertyId: string): PhoneNumber[] {
+  return getDb().phoneNumbers.filter((n) => n.propertyId === propertyId);
+}
+
+export function togglePhoneNumber(numberId: string, enabled: boolean): void {
+  const user = currentUser();
+  mutate((d) => {
+    const num = d.phoneNumbers.find((n) => n.id === numberId);
+    if (!num) throw new Error('Phone number not found');
+    if (enabled) {
+      const svc = d.services.find((s) => s.unitId === num.unitId && s.offeringId === 'OFF-V01' && s.status === 'Active');
+      if (!svc) throw new Error('No active FixedVoice service on this unit');
+      num.status = 'Active';
+      num.serviceInstanceId = svc.id;
+    } else {
+      num.status = 'Available';
+      num.serviceInstanceId = undefined;
+    }
+    audit(d, user.tenantId, user.name, enabled ? 'Phone number enabled' : 'Phone number disabled', 'property', num.propertyId, num.number);
+  });
+}
+
+export function bulkTogglePhoneNumbers(propertyId: string, unitIds: string[], enabled: boolean): void {
+  const user = currentUser();
+  mutate((d) => {
+    unitIds.forEach((uid) => {
+      const num = d.phoneNumbers.find((n) => n.propertyId === propertyId && n.unitId === uid);
+      if (!num) return;
+      if (enabled) {
+        const svc = d.services.find((s) => s.unitId === uid && s.offeringId === 'OFF-V01' && s.status === 'Active');
+        if (!svc) return; // skip units without FixedVoice
+        num.status = 'Active';
+        num.serviceInstanceId = svc.id;
+      } else {
+        num.status = 'Available';
+        num.serviceInstanceId = undefined;
+      }
+    });
+    audit(d, user.tenantId, user.name, `Bulk ${enabled ? 'enable' : 'disable'} phone numbers`, 'property', propertyId, `${unitIds.length} units`);
+  });
+}
+
+export function bulkProvisionAddOn(propertyId: string, unitIds: string[], addOnId: string): { orderId: string; requestId: string; pendingApproval: boolean } {
+  const user = currentUser();
+  return mutate((d) => {
+    const p = d.properties.find((x) => x.id === propertyId);
+    if (!p) throw new Error('Property not found');
+    const needsApproval = d.settings.approvalForBulkActivation;
+    const orderId = `ORD-${++d.seq}`;
+    const reqId = `SR-${++d.seq}`;
+    const items = unitIds.map((uid) => {
+      const svc = d.services.find((s) => s.unitId === uid && s.status === 'Active' && s.offeringId.startsWith('OFF-R'));
+      if (!svc) return { unitId: uid, status: 'Failed' as const, note: 'No active residential service' };
+      if (!svc.addOns.includes(addOnId)) svc.addOns.push(addOnId);
+      return { unitId: uid, serviceId: svc.id, status: needsApproval ? ('Awaiting Approval' as const) : ('Completed' as const) };
+    });
+    d.orders.unshift({ id: orderId, kind: 'Add-on', requestId: reqId, items, createdAt: nowIso() });
+    d.requests.unshift({ id: reqId, tenantId: p.tenantId, kind: 'Service Request', category: 'Bulk Activation', title: `Bulk add-on – ${addOnId} for ${unitIds.length} units at ${p.name}`, description: `Provisioning add-on ${addOnId} to ${unitIds.length} units.`, propertyId: p.id, priority: 'Medium', status: needsApproval ? 'Validating' : 'Completed', assignedTeam: 'Service Operations', createdBy: user.id, createdAt: TODAY, slaDue: addDays(TODAY, 7), timeline: [{ at: nowIso(), status: 'Submitted', by: user.name, note: `Bulk add-on order ${orderId}` }], attachments: [], orderId });
+    if (needsApproval) d.approvals.unshift({ id: `APR-${++d.seq}`, tenantId: p.tenantId, type: 'Bulk Service Activation', summary: `Provision ${addOnId} to ${unitIds.length} units at ${p.name}`, target: { kind: 'order', id: orderId }, payload: { orderId, requestId: reqId }, requestedBy: user.id, requestedAt: nowIso(), status: 'Pending' });
+    audit(d, p.tenantId, user.name, 'Bulk add-on provisioned', 'property', p.id, `${addOnId} × ${unitIds.length} units`);
+    return { orderId, requestId: reqId, pendingApproval: needsApproval };
+  });
+}
+
+export function removeAddOn(serviceId: string, addOnId: string): string {
+  const user = currentUser();
+  return mutate((d) => {
+    const svc = d.services.find((s) => s.id === serviceId);
+    if (!svc) throw new Error('Service not found');
+    svc.addOns = svc.addOns.filter((a) => a !== addOnId);
+    const reqId = `SR-${++d.seq}`;
+    d.requests.unshift({ id: reqId, tenantId: svc.tenantId, kind: 'Service Request', category: 'Plan Change', title: `Remove add-on ${addOnId} from ${serviceId}`, description: `Customer requested removal of add-on ${addOnId}.`, priority: 'Low', status: 'Completed', assignedTeam: 'Service Operations', createdBy: user.id, createdAt: TODAY, slaDue: addDays(TODAY, 1), timeline: [{ at: nowIso(), status: 'Completed', by: 'System', note: 'Add-on removed immediately' }], attachments: [] });
+    audit(d, svc.tenantId, user.name, 'Add-on removed', 'service', serviceId, addOnId);
+    return reqId;
+  });
 }
