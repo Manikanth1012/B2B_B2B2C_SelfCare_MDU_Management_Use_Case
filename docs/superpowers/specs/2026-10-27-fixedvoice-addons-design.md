@@ -49,8 +49,11 @@ Added to residential offerings OFF-R01, OFF-R02, OFF-R03:
 | ADD-MESH | Mesh Router / Wi-Fi Extender (existing) | $4 |
 | ADD-MESH-NODE | Extra Mesh Node | $6 |
 | ADD-STATIC-IP | Static IP (existing) | $8 |
+| ADD-VOICEMAIL | Voicemail (with PIN access & email delivery) | $3 |
+| ADD-INTL | International Calling Plan – 200 mins/mo | $10 |
 
 > Voice/Fixed Line is a **standalone service** (`OFF-V01`), not an add-on.
+> Voicemail and International Calling are add-ons available on `OFF-V01` (FixedVoice Home) services only.
 
 ### 2.4 `ServiceInstance` Update
 
@@ -236,10 +239,15 @@ removeAddOn(serviceId: ID, addOnId: string): void  // complete existing stub
 
 ---
 
-## 9. Out of Scope
+## 9. UI Cleanup (in scope)
+
+- **Remove "Orders" nav item** from top navigation and mobile bottom nav — Orders are accessed via Service Center
+- **Remove AARYA assistant popup** — floating button and chat panel removed from Layout
+- **Remove "Reset demo data" button** — removed from the user profile/avatar dropdown in Layout
+- **Remove "Reset demo data" button from Guide page** as well
+
+## 10. Out of Scope
 
 - Call logs / CDR (call detail records)
 - Number porting
-- Voicemail configuration
-- International calling plans
 - Number reservation/selection by occupant
