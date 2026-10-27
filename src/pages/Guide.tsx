@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { BookOpen, PlayCircle } from 'lucide-react';
 import { currentUser, demoUsers } from '../api/api';
-import { resetDb, setSessionUserId } from '../data/store';
+import { setSessionUserId } from '../data/store';
 import { useDbVersion } from '../lib/hooks';
 import { Button, Card, PageHeader, SimNote, useToast } from '../components/ui';
 import { BlushPanel } from '../components/template';
@@ -101,11 +101,6 @@ export function Guide() {
           </span>
         }
         subtitle="6D Business & MDU Self-Care — what the prototype shows, who to sign in as, and how to walk through each journey."
-        actions={
-          <Button variant="secondary" onClick={() => confirm('Reset all demo data to the original seed?') && (resetDb(), toast('info', 'Demo data reset'))}>
-            Reset demo data
-          </Button>
-        }
       />
       <BlushPanel title="About this prototype">
         <p className="max-w-4xl text-[15px] leading-relaxed text-ink-700">

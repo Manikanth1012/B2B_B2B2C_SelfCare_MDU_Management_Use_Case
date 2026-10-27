@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
-import { Bell, Bot, Building2, ChevronDown, CreditCard, Home, LayoutDashboard, LifeBuoy, Menu, Network, RotateCcw, Send, ShoppingBag, User, Wifi, X } from 'lucide-react';
+import { Bell, Building2, ChevronDown, CreditCard, Home, LayoutDashboard, LifeBuoy, Menu, Network, User, Wifi, X } from 'lucide-react';
 import { can, currentUser, demoUsers, listApprovals } from '../api/api';
-import { resetDb, setSessionUserId } from '../data/store';
+import { setSessionUserId } from '../data/store';
 import { useApi, useDbVersion } from '../lib/hooks';
 import type { Permission } from '../data/types';
 import { useToast } from './ui';
@@ -61,7 +61,6 @@ const NAV: NavGroup[] = [
       { label: 'Billing Preferences', to: '/billing/preferences' },
     ],
   },
-  { label: 'Orders', to: '/orders' },
   {
     label: 'Service Center', to: '/requests',
     items: [
@@ -100,9 +99,8 @@ function useNavGroups() {
 function isGroupActive(g: NavGroup, path: string) {
   if (g.to === '/') return path === '/';
   const prefixes = [g.to, ...(g.items ?? []).map((i) => i.to.split('?')[0])];
-  if (g.label === 'Orders') return path === '/orders' || path.startsWith('/services/orders');
   if (g.label === 'Admin') return ['/approvals', '/users', '/reports', '/guide'].some((p) => path.startsWith(p));
-  if (g.label === 'Services') return path.startsWith('/services') && !path.startsWith('/services/orders');
+  if (g.label === 'Services') return path.startsWith('/services');
   return prefixes.some((p) => p !== '/' && path.startsWith(p));
 }
 
@@ -238,18 +236,6 @@ function UserMenu() {
               <button onClick={() => (setOpen(false), nav('/login'))} className="flex-1 rounded-lg px-3 py-2 text-xs font-bold text-crimson hover:bg-crimson-50">
                 Logout
               </button>
-              <button
-                onClick={() => {
-                  if (confirm('Reset all demo data to the original seed? Your changes will be lost.')) {
-                    resetDb();
-                    setOpen(false);
-                    toast('info', 'Demo data reset');
-                  }
-                }}
-                className="flex flex-1 items-center justify-center gap-1 rounded-lg px-3 py-2 text-xs font-bold text-ink-600 hover:bg-surface-100"
-              >
-                <RotateCcw className="h-3.5 w-3.5" /> Reset demo data
-              </button>
             </div>
           </div>
         </>
@@ -271,80 +257,6 @@ function ApprovalBell() {
   );
 }
 
-/* ---------------- Ask AARYA (6D's AI assistant) — scoped, deterministic demo ---------------- */
-
-const AARYA_INTENTS: { match: RegExp; answer: string; to: string; label: string }[] = [
-  { match: /overdue|unpaid|due|outstanding/i, answer: 'Here are invoices that are overdue in the billing accounts you can see.', to: '/billing?tab=invoices&status=Overdue', label: 'Open overdue invoices' },
-  { match: /ready|vacant|eligible|unconnected/i, answer: 'Units marked “Ready for Service” have network in place but no subscription — the best candidates for activation.', to: '/mdu/units', label: 'Open unit grid' },
-  { match: /bulk/i, answer: 'Bulk activation checks availability per unit, rejects ineligible ones, and sends the rest for approval.', to: '/services/bulk', label: 'Start bulk activation' },
-  { match: /hierarch|subsidiar|child|parent/i, answer: 'The hierarchy explorer shows organisational ownership, with billing accounts as separate dashed links.', to: '/accounts/hierarchy', label: 'Open hierarchy' },
-  { match: /ticket|issue|slow|outage|complain/i, answer: 'I can take you to the Service Center to raise or track a ticket.', to: '/requests', label: 'Open Service Center' },
-  { match: /approv/i, answer: 'Pending approvals you can decide are listed in the approval queue.', to: '/approvals', label: 'Open approvals' },
-  { match: /plan|upgrade|downgrade|speed/i, answer: 'Plan changes are submitted as orders; nothing changes on the network until fulfilment.', to: '/services/changes', label: 'Change a plan' },
-  { match: /order/i, answer: 'All your orders and their fulfilment status are on the Orders page.', to: '/orders', label: 'Open orders' },
-];
-
-function AskAarya() {
-  const [open, setOpen] = useState(false);
-  const [q, setQ] = useState('');
-  const [log, setLog] = useState<{ who: 'me' | 'aarya'; text: string; to?: string; label?: string }[]>([]);
-  const nav = useNavigate();
-  const ask = (text: string) => {
-    const hit = AARYA_INTENTS.find((i) => i.match.test(text));
-    setLog((l) => [...l, { who: 'me', text }, hit ? { who: 'aarya', text: hit.answer, to: hit.to, label: hit.label } : { who: 'aarya', text: 'I don’t have enough evidence in your authorised data to answer that. Try asking about overdue invoices, ready units, bulk activation, approvals or tickets.' }]);
-    setQ('');
-  };
-  return (
-    <>
-      {open && (
-        <div role="dialog" aria-label="Ask AARYA" className="fixed bottom-24 right-4 z-50 flex max-h-[70vh] w-[min(92vw,360px)] flex-col overflow-hidden rounded-3xl border border-line-100 bg-white shadow-2xl">
-          <div className="flex items-center gap-2 bg-aarya px-4 py-3 text-white">
-            <Bot className="h-5 w-5" />
-            <span className="flex-1 font-bold">AARYA assistant</span>
-            <button aria-label="Close AARYA" onClick={() => setOpen(false)}>
-              <X className="h-5 w-5" />
-            </button>
-          </div>
-          <div className="flex-1 space-y-2 overflow-y-auto p-3 text-sm">
-            <p className="rounded-2xl bg-surface-100 p-3 text-ink-700">Hi {currentUser().name.split(' ')[0]} — I answer from the records your role can see. Demo mode: guided intents only.</p>
-            {log.map((m, i) => (
-              <div key={i} className={clsx('rounded-2xl p-3', m.who === 'me' ? 'ml-8 bg-crimson-50 text-navy' : 'mr-8 bg-surface-100 text-ink-700')}>
-                {m.text}
-                {m.to && (
-                  <button onClick={() => (nav(m.to!), setOpen(false))} className="mt-2 block text-xs font-bold text-royal-700 hover:underline">
-                    {m.label} →
-                  </button>
-                )}
-              </div>
-            ))}
-            {!log.length && (
-              <div className="flex flex-wrap gap-1.5">
-                {['Show overdue invoices', 'Which units are ready?', 'Pending approvals', 'Raise a ticket'].map((s) => (
-                  <button key={s} onClick={() => ask(s)} className="rounded-full border border-line-200 px-3 py-1 text-xs font-semibold text-ink-700 hover:border-crimson hover:text-crimson">
-                    {s}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-          <form onSubmit={(e) => (e.preventDefault(), q.trim() && ask(q.trim()))} className="flex gap-2 border-t border-line-100 p-2">
-            <input value={q} onChange={(e) => setQ(e.target.value)} aria-label="Ask AARYA" placeholder="Ask about bills, units, tickets…" className="h-10 flex-1 rounded-full border border-line-200 px-4 text-sm focus:border-crimson focus:outline-none" />
-            <button aria-label="Send" className="flex h-10 w-10 items-center justify-center rounded-full bg-brand text-white">
-              <Send className="h-4 w-4" />
-            </button>
-          </form>
-        </div>
-      )}
-      <button onClick={() => setOpen((o) => !o)} className="fixed bottom-20 right-4 z-40 flex items-center gap-3 rounded-full bg-aarya py-2 pl-2 pr-5 text-[15px] font-semibold text-white shadow-xl md:bottom-6">
-        <span className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-[#1B2A6B]">
-          <Bot className="h-5 w-5" />
-        </span>
-        Ask AARYA
-      </button>
-    </>
-  );
-}
-
 const BOTTOM: { to: string; label: string; icon: ReactNode; perm?: Permission; roles?: string[]; hideFor?: string[] }[] = [
   { to: '/', label: 'Home', icon: <LayoutDashboard className="h-5 w-5" /> },
   { to: '/accounts/hierarchy', label: 'Accounts', icon: <Network className="h-5 w-5" />, perm: 'account.read', hideFor: ['RESIDENT', 'MDU_PM'] },
@@ -352,7 +264,6 @@ const BOTTOM: { to: string; label: string; icon: ReactNode; perm?: Permission; r
   { to: '/home', label: 'My Home', icon: <Home className="h-5 w-5" />, roles: ['RESIDENT'] },
   { to: '/services', label: 'Services', icon: <Wifi className="h-5 w-5" />, roles: ['RESIDENT'] },
   { to: '/billing', label: 'Bills', icon: <CreditCard className="h-5 w-5" />, perm: 'billing.read' },
-  { to: '/orders', label: 'Orders', icon: <ShoppingBag className="h-5 w-5" />, roles: ['MDU_PM'] },
   { to: '/requests', label: 'Tickets', icon: <LifeBuoy className="h-5 w-5" /> },
 ];
 
@@ -398,7 +309,6 @@ export function Layout({ children }: { children: ReactNode }) {
       <main id="main" className="relative z-10 mx-auto min-w-0 max-w-[1600px] px-4 pb-28 pt-8 sm:px-8 md:pb-24">
         {children}
       </main>
-      <AskAarya />
       <nav aria-label="Quick" className="fixed inset-x-0 bottom-0 z-30 flex border-t border-line-100 bg-white md:hidden">
         {bottom.map((b) => (
           <NavLink key={b.to} to={b.to} end className={({ isActive }) => clsx('flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] font-bold', isActive ? 'text-crimson' : 'text-ink-400')}>
