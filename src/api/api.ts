@@ -1304,7 +1304,9 @@ export async function submitNewConnection(input: NewConnectionInput) {
     } else billingId = input.billing.billingId;
     const srvId = `SRV-${++d.seq}`;
     const addOnMrc = (offering.addOns ?? []).filter((a) => input.addOns.includes(a.id)).reduce((a, x) => a + x.mrc, 0);
-    d.services.push({ id: srvId, offeringId: offering.id, tenantId, owner: { kind: ownerKind, id: ownerId }, businessAccountId: input.businessAccountId, unitId: unit?.id, propertyId, location: input.address, billingAccountId: billingId, status: 'Pending Installation', mrc: offering.mrc + addOnMrc, addOns: input.addOns, equipment: [] });
+    const assignedPn = offering.id === 'OFF-V01' && unit ? d.phoneNumbers.find((n) => n.unitId === unit!.id && n.status === 'Available') : undefined;
+    d.services.push({ id: srvId, offeringId: offering.id, tenantId, owner: { kind: ownerKind, id: ownerId }, businessAccountId: input.businessAccountId, unitId: unit?.id, propertyId, location: input.address, billingAccountId: billingId, status: 'Pending Installation', mrc: offering.mrc + addOnMrc, addOns: input.addOns, equipment: [], ...(assignedPn ? { phoneNumber: assignedPn.number } : {}) });
+    if (assignedPn) { const pn = d.phoneNumbers.find((n) => n.id === assignedPn.id)!; pn.status = 'Active'; pn.serviceInstanceId = srvId; }
     const reqId = `SR-${++d.seq}`;
     const orderId = `PO-${++d.seq}`;
     d.requests.unshift({ id: reqId, tenantId, kind: 'Service Request', category: 'New Connection', title: `${offering.name} – ${input.address}`, description: `New connection order ${orderId}. Qualification ${q.id}: ${q.reason}`, businessAccountId: input.businessAccountId, propertyId, unitId: unit?.id, serviceId: srvId, billingAccountId: billingId, priority: 'Medium', status: 'Submitted', assignedTeam: unit ? 'FTTH Field Engineering' : 'Enterprise Provisioning', createdBy: user.id, createdAt: TODAY, slaDue: addDays(TODAY, unit ? 7 : 21), timeline: [{ at: nowIso(), status: 'Submitted', by: user.name, note: `Order ${orderId} submitted via self-care (simulated)` }], attachments: [], orderId });
