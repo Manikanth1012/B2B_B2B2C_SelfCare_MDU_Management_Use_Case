@@ -35,10 +35,11 @@ export function RegisterMdu() {
     technology: 'FTTH',
     readiness: 'Survey Pending',
     capacityPorts: 64,
-    equipment: '',
+    olts: [{ name: 'OLT-1', ports: 64, location: '' }],
     plannedActivation: '2026-12-01',
     billingModel: 'Individual',
   });
+  const setOlt = (i: number, patch: Partial<RegisterPropertyInput['olts'][number]>) => setF({ ...f, olts: f.olts.map((o, j) => (j === i ? { ...o, ...patch } : o)) });
   const totalUnits = f.towers.reduce((a, t) => a + t.floors * t.unitsPerFloor, 0);
 
   const errors = useMemo(() => {
@@ -182,9 +183,28 @@ export function RegisterMdu() {
             <Field label="Planned activation date" error={err('plannedActivation')}>
               <input type="date" className={inputCls} value={f.plannedActivation} onChange={(e) => setF({ ...f, plannedActivation: e.target.value })} />
             </Field>
-            <Field label="Distribution equipment">
-              <input className={inputCls} value={f.equipment} onChange={(e) => setF({ ...f, equipment: e.target.value })} placeholder="e.g. OLT, splitters, MDU switch" />
-            </Field>
+            <div className="sm:col-span-2">
+              <p className="mb-1 text-sm font-semibold text-navy">OLTs (Optical Line Terminals)</p>
+              <div className="hidden grid-cols-[1fr_100px_1fr_36px] gap-2 px-1 pb-1 text-xs font-semibold text-slate-500 sm:grid">
+                <span>OLT name / identifier</span>
+                <span>Ports</span>
+                <span>Location / riser</span>
+                <span />
+              </div>
+              {f.olts.map((o, i) => (
+                <div key={i} className="mb-2 grid grid-cols-2 gap-2 sm:grid-cols-[1fr_100px_1fr_36px]">
+                  <input aria-label="OLT name" className={inputCls} value={o.name} onChange={(e) => setOlt(i, { name: e.target.value })} placeholder="e.g. OLT-A" />
+                  <input aria-label="Ports" type="number" min={1} max={1024} className={inputCls} value={o.ports} onChange={(e) => setOlt(i, { ports: Number(e.target.value) })} />
+                  <input aria-label="Location" className={clsx(inputCls, 'col-span-2 sm:col-span-1')} value={o.location} onChange={(e) => setOlt(i, { location: e.target.value })} placeholder="e.g. Tower A, Ground Floor" />
+                  <button aria-label="Remove OLT" className="rounded p-2 text-red-600 hover:bg-red-50 disabled:opacity-30" disabled={f.olts.length === 1} onClick={() => setF({ ...f, olts: f.olts.filter((_, j) => j !== i) })}>
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              ))}
+              <Button variant="secondary" size="sm" onClick={() => setF({ ...f, olts: [...f.olts, { name: `OLT-${f.olts.length + 1}`, ports: 64, location: '' }] })}>
+                <Plus className="h-4 w-4" /> Add OLT
+              </Button>
+            </div>
           </div>
         )}
 
@@ -214,6 +234,9 @@ export function RegisterMdu() {
               <Stat label="Total units">{totalUnits}</Stat>
               <Stat label="Connectivity">
                 {f.technology} · {f.readiness} · {f.capacityPorts} ports
+              </Stat>
+              <Stat label="OLTs">
+                {f.olts.map((o) => `${o.name} (${o.ports}p${o.location ? ', ' + o.location : ''})`).join(' · ')}
               </Stat>
               <Stat label="Planned activation">{f.plannedActivation}</Stat>
               <Stat label="Billing">{f.billingModel}</Stat>

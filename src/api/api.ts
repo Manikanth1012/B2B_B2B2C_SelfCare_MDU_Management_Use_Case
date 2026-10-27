@@ -1019,7 +1019,7 @@ export interface RegisterPropertyInput {
   technology: AccessTech;
   readiness: Readiness;
   capacityPorts: number;
-  equipment: string;
+  olts: { name: string; ports: number; location: string }[];
   plannedActivation: string;
   billingModel: BillingModel;
 }
@@ -1041,7 +1041,8 @@ export async function registerProperty(input: RegisterPropertyInput): Promise<st
       masterBillingId = `BA-${++d.seq}`;
       d.billingAccounts.push({ id: masterBillingId, tenantId, name: `${input.name.trim()} ${input.billingModel === 'Bulk Contract' ? 'Bulk Contract' : 'Master Billing'}`, type: 'Property Master', payerRef: { kind: 'property', id }, currency: 'USD', billCycleDay: 1, paymentMethod: 'Bank Transfer', invoiceDelivery: 'Email', paperless: true, status: 'Active', creditLimit: 500000 });
     }
-    d.properties.push({ id, tenantId, name: input.name.trim(), type: input.type, managementOrg: input.managementOrg, managerUserId: user.roleId === 'MDU_PM' ? user.id : 'U-200', address: input.address, city: input.city, geo: input.lat && input.lng ? { lat: input.lat, lng: input.lng } : undefined, contactPhone: input.contactPhone, contactEmail: input.contactEmail, technology: input.technology, readiness: input.readiness, capacityPorts: input.capacityPorts, equipment: input.equipment, plannedActivation: input.plannedActivation, billingModel: input.billingModel, masterBillingId, status: 'Onboarding', createdAt: TODAY });
+    const equipStr = input.olts.length ? input.olts.map((o) => `${o.name} (${o.ports} ports${o.location ? ', ' + o.location : ''})`).join('; ') : '';
+    d.properties.push({ id, tenantId, name: input.name.trim(), type: input.type, managementOrg: input.managementOrg, managerUserId: user.roleId === 'MDU_PM' ? user.id : 'U-200', address: input.address, city: input.city, geo: input.lat && input.lng ? { lat: input.lat, lng: input.lng } : undefined, contactPhone: input.contactPhone, contactEmail: input.contactEmail, technology: input.technology, readiness: input.readiness, capacityPorts: input.capacityPorts, equipment: equipStr, olts: input.olts, plannedActivation: input.plannedActivation, billingModel: input.billingModel, masterBillingId, status: 'Onboarding', createdAt: TODAY });
     input.towers.forEach((t, ti) => {
       const prefix = /^tower\s+/i.test(t.name) ? t.name.replace(/^tower\s+/i, '').trim() : t.name.trim();
       const code = (prefix.split(/\s+/)[0] || String.fromCharCode(65 + ti)).slice(0, 4).toUpperCase();

@@ -182,6 +182,7 @@ export interface Property {
   readiness: Readiness;
   capacityPorts: number;
   equipment: string;
+  olts?: { name: string; ports: number; location: string }[];
   plannedActivation: ISODate;
   billingModel: BillingModel;
   masterBillingId?: ID;
