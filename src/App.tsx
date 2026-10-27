@@ -15,6 +15,7 @@ import { PropertyDetail } from './pages/mdu/PropertyDetail';
 import { UnitsExplorer } from './pages/mdu/UnitsExplorer';
 import { Occupancy } from './pages/mdu/Occupancy';
 import { PhoneNumbers } from './pages/mdu/PhoneNumbers';
+import { AddonsManagement } from './pages/mdu/AddonsManagement';
 import { BulkImport } from './pages/mdu/BulkImport';
 import { MyHome } from './pages/mdu/MyHome';
 import { ServicesList } from './pages/services/ServicesList';
@@ -62,6 +63,7 @@ export function App() {
             <Route path="/mdu/units" element={<UnitsExplorer />} />
             <Route path="/mdu/occupancy" element={<Occupancy />} />
             <Route path="/mdu/phone-numbers" element={<PhoneNumbers />} />
+            <Route path="/mdu/addons" element={<AddonsManagement />} />
             <Route path="/mdu/import" element={<Fresh><BulkImport /></Fresh>} />
             <Route path="/mdu/:id" element={<PropertyDetail />} />
             <Route path="/services" element={<ServicesList />} />
