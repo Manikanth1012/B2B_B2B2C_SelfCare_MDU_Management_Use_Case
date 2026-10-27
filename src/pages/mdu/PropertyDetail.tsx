@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
-import { FileText, LifeBuoy, Plus, Upload, Zap } from 'lucide-react';
+import { FileText, LifeBuoy, Package, Phone, Plus, Upload, Zap } from 'lucide-react';
 import { can, getProperty, listProperties } from '../../api/api';
 import { useApi } from '../../lib/hooks';
 import { date, dateTime, money, pct } from '../../lib/format';
@@ -51,6 +51,16 @@ export function PropertyDetail() {
             {can('service.bulk') && (
               <LinkButton to={`/services/bulk?property=${p.id}`} variant="primary">
                 <Zap className="h-4 w-4" /> Bulk activation
+              </LinkButton>
+            )}
+            {can('property.read') && (
+              <LinkButton to={`/mdu/phone-numbers?property=${p.id}`} variant="secondary">
+                <Phone className="h-4 w-4" /> Phone Numbers
+              </LinkButton>
+            )}
+            {can('unit.manage') && (
+              <LinkButton to={`/mdu/addons?property=${p.id}`} variant="secondary">
+                <Package className="h-4 w-4" /> Add-ons
               </LinkButton>
             )}
           </>
