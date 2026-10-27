@@ -328,7 +328,7 @@ export function NewConnection() {
             <label className="flex items-start gap-2 text-sm">
               <input type="checkbox" checked={terms} onChange={(e) => setTerms(e.target.checked)} className="mt-1" />I accept the charges above and the operator's service terms.
             </label>
-            <SimNote>Submits a TMF622 product order and schedules installation (simulated). The service stays Pending Installation until fulfilment completes.</SimNote>
+            <SimNote>The order is submitted and installation scheduled. The service stays Pending Installation until fulfilment completes.</SimNote>
           </div>
         )}
 

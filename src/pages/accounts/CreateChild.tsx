@@ -260,7 +260,7 @@ export function CreateChild() {
               {f.type === 'Billing' && <Stat label="Rolls up into">{f.billing.parentBillingId ?? 'Standalone'}</Stat>}
             </dl>
             {getSettings().approvalForChildAccount && f.type !== 'Billing' && <p className="rounded border border-amber-200 bg-amber-50 p-2 text-sm text-amber-800">Approval policy is on: the account will be created as Pending Approval.</p>}
-            <SimNote>Creates the party, party role and ownership relationship through mock TMF632/TMF669 adapters (and TMF666 for billing accounts).</SimNote>
+            <SimNote>Creates the account and its billing relationship.</SimNote>
           </div>
         )}
 

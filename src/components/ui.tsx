@@ -161,7 +161,7 @@ export function SimNote({ children }: { children?: ReactNode }) {
   return (
     <div className="flex items-start gap-2 rounded-md border border-dashed border-cyan-300 bg-cyan-50 px-3 py-2 text-xs text-cyan-900">
       <Info className="mt-0.5 h-4 w-4 shrink-0" />
-      <span>{children ?? 'Simulated operation — the prototype uses mock TM Forum API adapters. No live network, billing or payment system is changed.'}</span>
+      <span>{children ?? 'Simulated operation — no live network, billing or payment system is changed.'}</span>
     </div>
   );
 }

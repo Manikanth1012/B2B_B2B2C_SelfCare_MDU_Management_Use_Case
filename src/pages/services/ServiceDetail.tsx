@@ -199,7 +199,7 @@ function AddOnModal({ service, onClose }: { service: Awaited<ReturnType<typeof g
         ))}
       </div>
       <div className="mt-3">
-        <SimNote>Submits a TMF622 modify order (simulated). The add-on is applied and billed once the order is fulfilled.</SimNote>
+        <SimNote>The request is submitted. The add-on is applied and billed once the order is fulfilled.</SimNote>
       </div>
     </Modal>
   );
@@ -299,7 +299,7 @@ function ChangeModal({ kind, service, onClose }: { kind: 'plan' | 'suspend' | 'r
       )}
       {kind === 'resume' && <p className="text-sm text-slate-700">Reactivate {service.offeringName} at {service.location}? Full monthly charges resume on fulfilment.</p>}
       <div className="mt-3">
-        <SimNote>Submits a TMF622 product order (simulated). The live service changes only when the order is fulfilled — nothing is silently altered.</SimNote>
+        <SimNote>The request is submitted. The live service changes only when the order is fulfilled — nothing is silently altered.</SimNote>
       </div>
     </Modal>
   );

@@ -218,7 +218,7 @@ export function RegisterMdu() {
               <Stat label="Planned activation">{f.plannedActivation}</Stat>
               <Stat label="Billing">{f.billingModel}</Stat>
             </dl>
-            <SimNote>Creates the property and its building/floor/unit location structure in the prototype’s own premises domain, ready for mapping to TMF673/TMF674 geographic site resources in a live BSS.</SimNote>
+            <SimNote>Creates the property and its building/floor/unit location structure.</SimNote>
           </div>
         )}
 

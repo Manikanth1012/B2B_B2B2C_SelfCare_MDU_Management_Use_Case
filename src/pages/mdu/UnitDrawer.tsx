@@ -114,7 +114,7 @@ export function UnitDrawer({ unitId, onClose }: { unitId: string; onClose: () =>
                 <StatusBadge status={qual.result} />
               </div>
               <p className="text-slate-600">{qual.reason}</p>
-              <p className="mt-1 font-mono text-[11px] text-slate-400">{qual.id} · TMF645 (simulated)</p>
+              <p className="mt-1 font-mono text-[11px] text-slate-400">{qual.id}</p>
             </div>
           )}
 

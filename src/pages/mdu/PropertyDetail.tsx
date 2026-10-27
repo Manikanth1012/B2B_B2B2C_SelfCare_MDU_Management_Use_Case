@@ -350,7 +350,7 @@ function Documents({ propertyName }: { propertyName: string }) {
   const [docs, setDocs] = useState([
     { name: 'Right-of-way & access agreement.pdf', type: 'Agreement', date: '2024-06-20' },
     { name: 'FTTH riser design – all towers.pdf', type: 'Network design', date: '2024-07-05' },
-    { name: 'Bulk services master contract.pdf', type: 'Contract (TMF651)', date: '2024-07-28' },
+    { name: 'Bulk services master contract.pdf', type: 'Contract', date: '2024-07-28' },
     { name: 'Fire NOC – telecom shaft.pdf', type: 'Compliance', date: '2024-07-30' },
   ]);
   return (

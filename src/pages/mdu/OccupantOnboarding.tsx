@@ -464,7 +464,7 @@ export function OccupantOnboardingModal({ unitId, unitLabel, currentOccupant, on
             </div>
           )}
           {currentOccupant && <p className="text-sm text-amber-800">{currentOccupant}'s occupancy will end on the day before {date(occ.from)}.</p>}
-          <SimNote>Simulated eKYC and OTP gateways. Real deployments call UIDAI (via an AUA/KUA), DigiLocker and SMS providers. Only masked identifiers and the consent log are stored.</SimNote>
+          <SimNote>eKYC and OTP verification is simulated. Only masked identifiers and the consent log are stored.</SimNote>
         </div>
       )}
     </Modal>

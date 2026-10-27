@@ -69,17 +69,6 @@ const RULES = [
   ['Customer identity before resident billing', 'Occupants are found or registered through a lookup-first flow (no duplicates), linked with OTP consent, and verified by eKYC. Resident-billed orders require KYC Verified; only masked ID references are stored.'],
 ];
 
-const TMF = [
-  ['Customer / party / roles', 'TMF629 · TMF632 · TMF669'],
-  ['Billing accounts', 'TMF666'],
-  ['Bills & payments', 'TMF678 · TMF676'],
-  ['Catalogue & qualification', 'TMF620 · TMF679 · TMF645'],
-  ['Ordering & inventory', 'TMF622 · TMF641 · TMF637'],
-  ['Tickets', 'TMF621'],
-  ['Agreements (bulk contracts)', 'TMF651'],
-  ['Users & permissions', 'TMF672'],
-  ['Premises (mapped, not forced)', 'TMF673 / TMF674 geographic address & site'],
-];
 
 export function Guide() {
   useDbVersion();
@@ -171,22 +160,9 @@ export function Guide() {
             ))}
           </dl>
         </Card>
-        <Card title="TM Forum Open API alignment">
-          <table className="w-full text-sm">
-            <tbody>
-              {TMF.map(([d, a]) => (
-                <tr key={d} className="border-b border-line-100 last:border-0">
-                  <td className="py-2 pr-3 text-ink-700">{d}</td>
-                  <td className="py-2 font-semibold text-navy">{a}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <p className="mt-3 text-xs text-ink-600">The mock adapter in <code>src/api/api.ts</code> marks each operation with its target API, so it can be swapped for live endpoints domain by domain.</p>
-        </Card>
       </div>
       <SimNote>
-        Known limits: single-browser mock persistence (no server); Ask AARYA is a guided, deterministic demo rather than a live model. The full read-me, including screenshots, run instructions and tests, is <b>README.md</b> in the repository.
+        Known limits: single-browser persistence (no server). The full read-me, including screenshots and run instructions, is <b>README.md</b> in the repository.
       </SimNote>
     </div>
   );

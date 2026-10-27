@@ -31,7 +31,7 @@ export function Availability() {
 
   return (
     <div className="mx-auto max-w-4xl">
-      <PageHeader title="Service Availability" subtitle="Qualify a unit or business address before ordering (TMF645 Service Qualification, simulated)." crumbs={[{ label: 'Services', to: '/services' }, { label: 'Availability' }]} />
+      <PageHeader title="Service Availability" subtitle="Qualify a unit or business address before ordering." crumbs={[{ label: 'Services', to: '/services' }, { label: 'Availability' }]} />
       <Card>
         {!residentUnit && (
           <div className="mb-4 flex rounded-full border border-line-200 bg-white p-1 sm:w-fit">
