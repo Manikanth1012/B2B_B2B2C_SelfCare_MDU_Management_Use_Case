@@ -23,7 +23,7 @@ import type {
   User,
 } from './types';
 
-export const SCHEMA_VERSION = 9;
+export const SCHEMA_VERSION = 10;
 export const TODAY = '2026-10-23';
 
 function mulberry32(seed: number) {
@@ -458,17 +458,17 @@ export function buildSeed(): Database {
     S({ offeringId: off, owner: { kind: 'customer', id }, location: `Mobile ${phone}`, billingAccountId: ba, status: 'Active', activationDate: since, mrc: off === 'OFF-M01' ? 599 : 299, equipment: [{ type: '5G SIM', serial: `8991 2310 00${i}5 ${last4}` }] }, 'TEN-RES');
   });
   const snehaSrv = S({ offeringId: 'OFF-R02', owner: { kind: 'customer', id: sneha.id }, unitId: 'PRP-GV-A-104', propertyId: 'PRP-GV', location: 'Green Valley Residences, A-104', billingAccountId: 'BA-7001', status: 'Active', activationDate: '2024-09-02', contractEnd: '2026-12-01', mrc: 999, addOns: ['ADD-OTT'], equipment: [{ type: 'GPON ONT + Wi-Fi 6', serial: 'ONT48213377' }] }, 'TEN-EVG');
-  // Pre-assigned US phone numbers — one per unit across all towers & floors for all properties.
-  // Area codes: Green Valley → 408 (San Jose), Sunrise Heights → 512 (Austin), Palm Meadows → 305 (Miami)
-  const areaCodes: Record<string, string> = { 'PRP-GV': '408', 'PRP-SH': '512', 'PRP-PM': '305' };
+  // Pre-assigned Indian landline numbers — one per unit across all towers & floors.
+  // STD codes: Green Valley → 080 (Bengaluru), Sunrise Heights → 040 (Hyderabad), Palm Meadows → 020 (Pune)
+  const stdCodes: Record<string, string> = { 'PRP-GV': '080', 'PRP-SH': '040', 'PRP-PM': '020' };
   let pnSeq = 0;
   for (const { p } of props) {
-    const areaCode = areaCodes[p.id] ?? '202';
+    const std = stdCodes[p.id] ?? '011';
     const propUnits = db.units.filter((u) => u.propertyId === p.id);
     propUnits.forEach((u) => {
       pnSeq++;
-      const base = 5550000 + pnSeq;
-      const num = `+1 (${areaCode}) 555-${String(base).slice(-4)}`;
+      const subscriber = String(40000000 + pnSeq).padStart(8, '0');
+      const num = `+91-${std}-${subscriber.slice(0, 4)}-${subscriber.slice(4)}`;
       const id = `PN-${u.id}`;
       db.phoneNumbers.push({ id, number: num, propertyId: p.id, unitId: u.id, status: 'Available', serviceInstanceId: undefined });
     });
