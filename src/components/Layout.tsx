@@ -73,12 +73,12 @@ const NAV: NavGroup[] = [
     ],
   },
   {
-    label: 'Admin', to: '/approvals', hideFor: ['RESIDENT'],
+    label: 'Admin', to: '/approvals',
     items: [
-      { label: 'Approval Requests', to: '/approvals' },
-      { label: 'Portal Users', to: '/users', perm: 'user.manage' },
+      { label: 'Approval Requests', to: '/approvals', hideFor: ['MDU_PM', 'RESIDENT'] },
+      { label: 'Portal Users', to: '/users', perm: 'user.manage', hideFor: ['MDU_PM', 'RESIDENT'] },
       { label: 'Roles & Permissions', to: '/users/roles' },
-      { label: 'Reports & Analytics', to: '/reports', perm: 'reports.read' },
+      { label: 'Reports & Analytics', to: '/reports', perm: 'reports.read', hideFor: ['MDU_PM', 'RESIDENT'] },
       { label: 'Read me · Demo guide', to: '/guide', hideFor: ['OPERATOR', 'ENT_SUPER', 'BIZ_ADMIN', 'MDU_PM', 'BILLING_ADMIN', 'RESIDENT'] },
     ],
   },
