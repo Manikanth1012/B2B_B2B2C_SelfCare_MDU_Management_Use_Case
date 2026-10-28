@@ -38,6 +38,8 @@ const NAV: NavGroup[] = [
       { label: 'MDU Portfolio', to: '/mdu' },
       { label: 'Buildings / Towers / Units', to: '/mdu/units' },
       { label: 'Occupancy Management', to: '/mdu/occupancy', perm: 'unit.manage' },
+      { label: 'Common Area Services', to: '/mdu/common-services', perm: 'service.read' },
+      { label: 'Phone Number Inventory', to: '/mdu/phone-numbers', perm: 'service.read' },
       { label: 'Register New MDU', to: '/mdu/new', perm: 'property.create' },
       { label: 'Bulk Unit Import', to: '/mdu/import', perm: 'unit.manage' },
     ],

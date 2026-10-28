@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Phone, Upload } from 'lucide-react';
 import { bulkTogglePhoneNumbers, getPhoneNumbers, importPhoneNumbers, listProperties, togglePhoneNumber } from '../../api/api';
@@ -15,6 +15,12 @@ export function PhoneNumbers() {
   const [selected, setSelected] = useState<string[]>([]);
   const [importing, setImporting] = useState(false);
   const { run, busy } = useAction();
+
+  useEffect(() => {
+    if (props.data && !propId && props.data.length > 0) {
+      setParams({ property: props.data[0].id }, { replace: true });
+    }
+  }, [props.data, propId, setParams]);
 
   if (props.error || q.error) return <ErrorState error={props.error ?? q.error!} />;
   if (!props.data) return <Loading />;

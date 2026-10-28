@@ -1636,6 +1636,7 @@ const TEAM: Record<RequestCategory, string> = {
   'Property Connectivity Issue': 'FTTH Field Engineering',
   'Account Modification': 'Customer Data Management',
   'Bulk Activation': 'FTTH Field Engineering',
+  'Common Area Service': 'MDU Provisioning',
 };
 const SLA_HOURS: Record<ServiceRequest['priority'], number> = { Critical: 1, High: 2, Medium: 5, Low: 10 };
 
@@ -2096,6 +2097,63 @@ export function bulkTogglePhoneNumbers(propertyId: string, unitIds: string[], en
       }
     });
     audit(d, user.tenantId, user.name, `Bulk ${enabled ? 'enable' : 'disable'} phone numbers`, 'property', propertyId, `${unitIds.length} units`);
+  });
+}
+
+/* ======================================================================
+ * Common / Property-level shared services
+ * ==================================================================== */
+
+export interface PropertyServiceOffering {
+  id: string;
+  name: string;
+  category: string;
+  mrc: number;
+  nrc: number;
+  contractMonths: number;
+}
+
+export function listPropertyOfferings(): PropertyServiceOffering[] {
+  return getDb().offerings
+    .filter((o) => o.segment === 'Business' && ['Managed Services', 'IoT', 'Voice'].includes(o.category))
+    .map((o) => ({ id: o.id, name: o.name, category: o.category, mrc: o.mrc, nrc: o.nrc, contractMonths: o.contractMonths }));
+}
+
+export async function orderPropertyService(input: { propertyId: string; offeringId: string; location: string; appointmentDate: string }): Promise<{ requestId: string; orderId: string; serviceId: string }> {
+  await latency();
+  const { db, user, scope } = ctx();
+  requirePerm(db, user, 'service.order');
+  if (!scope.properties.has(input.propertyId)) throw new AuthError('Property outside your scope.');
+  const p = db.properties.find((x) => x.id === input.propertyId)!;
+  if (!p.masterBillingId) throw new ValidationError('This property has no property billing account. Set up a billing account first.');
+  const offering = db.offerings.find((o) => o.id === input.offeringId);
+  if (!offering) throw new ValidationError('Offering not found.');
+  const accId = p.tenantId === 'TEN-EVG' ? 'ACC-2000' : p.tenantId === 'TEN-PMH' ? 'ACC-3000' : scope.accounts.values().next().value ?? '';
+  return mutate((d) => {
+    const srvId = `SRV-${++d.seq}`;
+    const reqId = `SR-${++d.seq}`;
+    const orderId = `PO-${++d.seq}`;
+    d.services.push({ id: srvId, tenantId: p.tenantId, offeringId: input.offeringId, owner: { kind: 'business', id: accId }, businessAccountId: accId, propertyId: input.propertyId, location: input.location || `${p.name} – Common area`, billingAccountId: p.masterBillingId!, status: 'Pending Installation', mrc: offering.mrc, addOns: [], equipment: [] });
+    d.requests.unshift({ id: reqId, tenantId: p.tenantId, kind: 'Service Request', category: 'Common Area Service', title: `New ${offering.name} – ${p.name}`, description: `Common area service ordered for ${p.name}.`, propertyId: input.propertyId, priority: 'Medium', status: 'Submitted', assignedTeam: 'MDU Provisioning', createdBy: user.id, createdAt: nowIso(), slaDue: addDays(TODAY, 10), timeline: [{ at: nowIso(), status: 'Submitted', by: user.name, note: 'Common area service order submitted (simulated)' }], attachments: [], orderId });
+    d.orders.unshift({ id: orderId, kind: 'New Connection', requestId: reqId, items: [{ serviceId: srvId, offeringId: input.offeringId, status: 'Queued' }], billingAccountId: p.masterBillingId!, appointment: `${input.appointmentDate} Morning (09:00–13:00)`, createdAt: nowIso() });
+    audit(d, p.tenantId, user.name, 'Common area service ordered', 'property', input.propertyId, offering.name);
+    return { requestId: reqId, orderId, serviceId: srvId };
+  });
+}
+
+export async function modifyPropertyService(serviceId: string, action: 'Suspend' | 'Resume' | 'Terminate'): Promise<void> {
+  await latency();
+  const { db, user, scope } = ctx();
+  requirePerm(db, user, 'service.order');
+  const svc = db.services.find((s) => s.id === serviceId);
+  if (!svc) throw new ValidationError('Service not found.');
+  if (!svc.propertyId || !scope.properties.has(svc.propertyId)) throw new AuthError('Service outside your scope.');
+  if (svc.unitId) throw new ValidationError('Use the standard service workflow for unit-level services.');
+  const next: ServiceInstance['status'] = action === 'Suspend' ? 'Suspended' : action === 'Resume' ? 'Active' : 'Terminated';
+  mutate((d) => {
+    const s = d.services.find((x) => x.id === serviceId)!;
+    s.status = next;
+    audit(d, svc.tenantId, user.name, `Common area service ${action.toLowerCase()}d`, 'property', svc.propertyId!, s.offeringId);
   });
 }
 

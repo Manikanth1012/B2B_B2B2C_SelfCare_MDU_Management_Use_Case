@@ -324,7 +324,8 @@ export type RequestCategory =
   | 'Network Issue'
   | 'Property Connectivity Issue'
   | 'Account Modification'
-  | 'Bulk Activation';
+  | 'Bulk Activation'
+  | 'Common Area Service';
 
 export type RequestStatus =
   | 'Submitted'
