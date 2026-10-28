@@ -414,7 +414,7 @@ export interface AuditEvent {
 
 /* ---------- Identity & access ---------- */
 
-export type RoleId = 'ENT_SUPER' | 'BIZ_ADMIN' | 'MDU_PM' | 'BILLING_ADMIN' | 'RESIDENT' | 'OPERATOR';
+export type RoleId = string;
 
 export type Permission =
   | 'account.read'

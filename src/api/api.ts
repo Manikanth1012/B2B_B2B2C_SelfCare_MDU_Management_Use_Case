@@ -1784,6 +1784,36 @@ export async function listUsers(): Promise<(User & { roleName: string; scopeLabe
     .map((u) => ({ ...u, roleName: db.roles.find((r) => r.id === u.roleId)!.name, scopeLabels: u.scopes.map(describeScope) }));
 }
 
+export async function createRole(input: { name: string; description: string; permissions: Permission[] }) {
+  await latency();
+  const { db, user } = ctx();
+  if (user.roleId !== 'OPERATOR') throw new AuthError('Only the operator can create roles.');
+  if (!input.name.trim()) throw new ValidationError('Role name is required.');
+  if (db.roles.some((r) => r.name.toLowerCase() === input.name.trim().toLowerCase())) throw new ValidationError('A role with this name already exists.');
+  const id = `ROLE-${input.name.trim().toUpperCase().replace(/[^A-Z0-9]+/g, '_').slice(0, 20)}_${Date.now().toString(36).slice(-4)}`;
+  mutate((d) => {
+    d.roles.push({ id, name: input.name.trim(), description: input.description.trim(), permissions: input.permissions });
+    audit(d, user.tenantId, user.name, 'Role created', 'settings', id, input.name.trim());
+  });
+  return id;
+}
+
+export async function updateRole(id: string, patch: { name?: string; description?: string; permissions?: Permission[] }) {
+  await latency();
+  const { db, user } = ctx();
+  if (user.roleId !== 'OPERATOR') throw new AuthError('Only the operator can modify roles.');
+  const role = db.roles.find((r) => r.id === id);
+  if (!role) throw new ValidationError('Role not found.');
+  if (['OPERATOR', 'RESIDENT'].includes(id)) throw new ValidationError('This system role cannot be modified.');
+  mutate((d) => {
+    const r = d.roles.find((x) => x.id === id)!;
+    if (patch.name !== undefined) r.name = patch.name.trim();
+    if (patch.description !== undefined) r.description = patch.description.trim();
+    if (patch.permissions !== undefined) r.permissions = patch.permissions;
+    audit(d, user.tenantId, user.name, 'Role updated', 'settings', id, r.name);
+  });
+}
+
 /** Roles a user may grant: never more than their own permissions (no privilege escalation). */
 export function grantableRoles(): Role[] {
   const { db, user } = ctx();
