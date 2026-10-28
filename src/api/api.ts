@@ -2099,6 +2099,38 @@ export function bulkTogglePhoneNumbers(propertyId: string, unitIds: string[], en
   });
 }
 
+/** Import phone numbers from CSV text: each line "unitNumber,phoneNumber" e.g. "A-101,+91-080-000001" */
+export function importPhoneNumbers(propertyId: string, csvText: string): { imported: number; skipped: number; errors: string[] } {
+  const { db, user } = ctx();
+  requirePerm(db, user, 'unit.manage');
+  const property = db.properties.find((p) => p.id === propertyId);
+  if (!property) throw new ValidationError('Property not found.');
+  const lines = csvText.split('\n').map((l) => l.trim()).filter((l) => l && !l.startsWith('#') && !l.toLowerCase().startsWith('unit'));
+  const errors: string[] = [];
+  let imported = 0, skipped = 0;
+  mutate((d) => {
+    for (const line of lines) {
+      const [unitPart, numPart] = line.split(',').map((s) => s.trim());
+      if (!unitPart || !numPart) { errors.push(`Invalid row: "${line}"`); skipped++; continue; }
+      // Accept both full unit ID (PRP-GV-A-101) and short form (A-101)
+      const unitId = unitPart.includes(propertyId) ? unitPart : `${propertyId}-${unitPart}`;
+      const unit = d.units.find((u) => u.id === unitId);
+      if (!unit) { errors.push(`Unit not found: "${unitPart}"`); skipped++; continue; }
+      if (d.phoneNumbers.some((n) => n.number === numPart && n.propertyId !== propertyId)) { errors.push(`Number already in use: "${numPart}"`); skipped++; continue; }
+      const existing = d.phoneNumbers.find((n) => n.unitId === unitId);
+      if (existing) {
+        if (existing.status === 'Active') { errors.push(`Unit ${unitPart} has an active number — deactivate first`); skipped++; continue; }
+        existing.number = numPart;
+      } else {
+        d.phoneNumbers.push({ id: `PN-${unitId}`, number: numPart, propertyId, unitId, status: 'Available', serviceInstanceId: undefined });
+      }
+      imported++;
+    }
+    audit(d, user.tenantId, user.name, 'Phone numbers imported', 'property', propertyId, `${imported} imported, ${skipped} skipped`);
+  });
+  return { imported, skipped, errors };
+}
+
 export function bulkProvisionAddOn(propertyId: string, unitIds: string[], addOnId: string): { orderId: string; requestId: string; pendingApproval: boolean } {
   const user = currentUser();
   return mutate((d) => {
