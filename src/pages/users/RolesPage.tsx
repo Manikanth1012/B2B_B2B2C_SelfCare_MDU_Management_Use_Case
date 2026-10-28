@@ -1,6 +1,6 @@
 import { Fragment } from 'react';
 import { Check, Minus } from 'lucide-react';
-import { currentUser, roles } from '../../api/api';
+import { currentUser, grantableRoles, roles } from '../../api/api';
 import type { Permission } from '../../data/types';
 import { Card, PageHeader } from '../../components/ui';
 
@@ -13,8 +13,12 @@ const GROUPS: { label: string; perms: [Permission, string][] }[] = [
 ];
 
 export function RolesPage() {
-  const all = roles();
   const mine = currentUser().roleId;
+  const allRoles = roles();
+  const grantable = grantableRoles();
+  // Show only own role + roles the current user can grant (their "child" roles)
+  const visible = new Set([mine, ...grantable.map((r) => r.id)]);
+  const all = allRoles.filter((r) => visible.has(r.id));
   return (
     <div>
       <PageHeader title="Roles & Permissions" subtitle="Permissions are enforced in the data-access layer and always combined with the user’s account, billing, property or unit scope." crumbs={[{ label: 'Admin' }, { label: 'Roles & permissions' }]} />
