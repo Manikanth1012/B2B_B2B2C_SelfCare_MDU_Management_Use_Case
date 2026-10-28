@@ -73,8 +73,8 @@ export const ROLES: Role[] = [
   {
     id: 'OPERATOR',
     name: 'Operator Administrator',
-    description: 'Demo role: provisioning, restricted approvals and operational status across all tenants.',
-    permissions: ['account.read', 'account.create', 'account.edit', 'account.move', 'property.read', 'property.create', 'property.edit', 'unit.manage', 'service.read', 'service.order', 'service.bulk', 'billing.read', 'billing.manage', 'request.create', 'user.manage', 'approval.decide', 'reports.read', 'audit.read'],
+    description: 'Full operator access: provisioning, approvals, user management and operational status across all tenants.',
+    permissions: ['account.read', 'account.create', 'account.edit', 'account.move', 'property.read', 'property.create', 'property.edit', 'unit.manage', 'service.read', 'service.order', 'service.bulk', 'billing.read', 'billing.manage', 'billing.pay', 'request.create', 'user.manage', 'approval.decide', 'reports.read', 'audit.read'],
   },
 ];
 
