@@ -23,7 +23,7 @@ import type {
   User,
 } from './types';
 
-export const SCHEMA_VERSION = 6;
+export const SCHEMA_VERSION = 7;
 export const TODAY = '2026-10-23';
 
 function mulberry32(seed: number) {
@@ -57,6 +57,12 @@ export const ROLES: Role[] = [
     name: 'MDU Property Manager',
     description: 'Assigned properties: buildings, units, occupancy, connectivity and bulk requests.',
     permissions: ['account.read', 'property.read', 'property.create', 'property.edit', 'unit.manage', 'service.read', 'service.order', 'service.bulk', 'billing.read', 'billing.pay', 'request.create', 'reports.read', 'user.manage'],
+  },
+  {
+    id: 'PROPERTY_STAFF',
+    name: 'Property Staff',
+    description: 'Assigned property: view units, manage occupancy, order services and raise tickets. Grantable by MDU Property Manager.',
+    permissions: ['property.read', 'unit.manage', 'service.read', 'service.order', 'billing.read', 'request.create'],
   },
   {
     id: 'BILLING_ADMIN',
@@ -550,7 +556,7 @@ export function buildSeed(): Database {
     { id: 'U-103', tenantId: 'TEN-6DGE', name: 'Rahul Iyer', email: 'rahul.iyer@6dglobal.example', phone: '+91 98450 10004', title: 'Group Finance Controller', roleId: 'BILLING_ADMIN', scopes: [{ kind: 'billing', ref: 'BA-9000', inherit: true }], status: 'Active', lastLogin: '2026-10-20T11:30:00Z' },
     { id: 'U-104', tenantId: 'TEN-6DGE', name: 'Wei Ling Tan', email: 'weiling.tan@6dglobal.example', phone: '+65 9123 4567', title: 'Country Director', roleId: 'BIZ_ADMIN', scopes: [{ kind: 'account', ref: 'ACC-1200', inherit: true }], status: 'Invited' },
     { id: 'U-200', tenantId: 'TEN-EVG', name: 'Priya Menon', email: 'priya.menon@evergreen-estates.example', phone: '+91 98860 20001', title: 'Property Portfolio Manager', roleId: 'MDU_PM', scopes: [{ kind: 'account', ref: 'ACC-2000', inherit: false }, { kind: 'property', ref: 'PRP-GV', inherit: true }, { kind: 'property', ref: 'PRP-SH', inherit: true }], status: 'Active', lastLogin: '2026-10-23T07:55:00Z' },
-    { id: 'U-201', tenantId: 'TEN-EVG', name: 'Farhan Qureshi', email: 'farhan.qureshi@evergreen-estates.example', phone: '+91 98860 20002', title: 'Estate Manager – Sunrise Heights', roleId: 'MDU_PM', scopes: [{ kind: 'property', ref: 'PRP-SH', inherit: true }], status: 'Active', lastLogin: '2026-10-18T10:00:00Z' },
+    { id: 'U-201', tenantId: 'TEN-EVG', name: 'Farhan Qureshi', email: 'farhan.qureshi@evergreen-estates.example', phone: '+91 98860 20002', title: 'Estate Manager – Sunrise Heights', roleId: 'MDU_PM', scopes: [{ kind: 'account', ref: 'ACC-2000', inherit: false }, { kind: 'property', ref: 'PRP-SH', inherit: true }], status: 'Active', lastLogin: '2026-10-18T10:00:00Z' },
     { id: 'U-300', tenantId: 'TEN-PMH', name: 'Deepa Joshi', email: 'deepa.joshi@palmmeadows.example', phone: '+91 98220 30001', title: 'Estate Manager', roleId: 'MDU_PM', scopes: [{ kind: 'account', ref: 'ACC-3000', inherit: false }, { kind: 'property', ref: 'PRP-PM', inherit: true }], status: 'Active', lastLogin: '2026-10-22T14:20:00Z' },
     { id: 'U-400', tenantId: 'TEN-RES', name: 'Sneha Kulkarni', email: 'sneha.kulkarni@mail.example', phone: '+91 98450 11223', title: 'Resident, Green Valley A-104', roleId: 'RESIDENT', scopes: [{ kind: 'unit', ref: 'PRP-GV-A-104', inherit: false }], customerId: 'CUS-SNEHA', status: 'Active', lastLogin: '2026-10-19T20:10:00Z' },
     { id: 'U-900', tenantId: 'TEN-OPR', name: 'Arjun Nair', email: 'arjun.nair@operator.example', phone: '+91 80 4000 9000', title: 'Operator Administrator', roleId: 'OPERATOR', scopes: [{ kind: 'all', inherit: true }], status: 'Active', lastLogin: '2026-10-23T06:00:00Z' },
