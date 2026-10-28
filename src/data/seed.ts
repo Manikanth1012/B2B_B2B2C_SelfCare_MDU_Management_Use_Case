@@ -23,7 +23,7 @@ import type {
   User,
 } from './types';
 
-export const SCHEMA_VERSION = 5;
+export const SCHEMA_VERSION = 6;
 export const TODAY = '2026-10-23';
 
 function mulberry32(seed: number) {
