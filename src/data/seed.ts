@@ -252,6 +252,8 @@ export function buildSeed(): Database {
   B('BA-8100', 'Green Valley Master Billing', 'Property Master', { kind: 'property', id: 'PRP-GV' }, null, { creditLimit: 500000 }, 'TEN-EVG');
   B('BA-8200', 'Sunrise Heights Bulk Contract', 'Property Master', { kind: 'property', id: 'PRP-SH' }, null, { creditLimit: 1500000 }, 'TEN-EVG');
   B('BA-8300', 'Palm Meadows Common Areas', 'Standard', { kind: 'property', id: 'PRP-PM' }, null, { creditLimit: 300000 }, 'TEN-PMH');
+  B('BA-9400', 'Evergreen Estate Management Billing', 'Standard', { kind: 'business', id: 'ACC-2000' }, null, { creditLimit: 200000 }, 'TEN-EVG');
+  B('BA-9500', 'Palm Meadows Corporate Billing', 'Standard', { kind: 'business', id: 'ACC-3000' }, null, { creditLimit: 150000 }, 'TEN-PMH');
 
   /* ---------------- Business services ---------------- */
   const S = (s: Omit<ServiceInstance, 'id' | 'tenantId' | 'addOns' | 'equipment'> & Partial<ServiceInstance>, tenantId = 'TEN-6DGE') => {
@@ -279,6 +281,22 @@ export function buildSeed(): Database {
   biz('ACC-1310', 'OFF-B02', 'Bannerghatta Road DC', 'BA-9300', '2024-03-10');
   biz('ACC-1310', 'OFF-B03', 'Bannerghatta Road DC', 'BA-9300', '2024-03-10');
   biz('ACC-1320', 'OFF-B05', 'Fleet vehicles (Bengaluru)', 'BA-9300', '2024-06-01', 'Suspended');
+  // Additional 6D services — contract ends spread across 2026 Q4 – 2028 Q1 for renewals chart
+  biz('ACC-1120', 'OFF-B01', 'Cyber Towers Dedicated Uplink', 'BA-9100', '2024-10-01'); // +36 = 2027 Q4
+  biz('ACC-1120', 'OFF-B06', 'Cyber Towers Managed Wi-Fi', 'BA-9100', '2025-08-01');   // +36 = 2028 Q3
+  biz('ACC-1110', 'OFF-B02', 'Whitefield Backup Internet', 'BA-9110', '2024-10-15');   // +24 = 2026 Q4
+  biz('ACC-1300', 'OFF-B01', 'Bannerghatta Road HQ Link', 'BA-9300', '2024-11-01');    // +36 = 2027 Q4
+  biz('ACC-1100', 'OFF-B03', 'India SD-WAN Overlay', 'BA-9100', '2025-08-01');         // +24 = 2027 Q4
+  biz('ACC-1100', 'OFF-B06', 'Pan-India IT Managed Wi-Fi', 'BA-9100', '2025-02-01');   // +36 = 2028 Q1
+  biz('ACC-1210', 'OFF-B03', 'Singapore SD-WAN Edge', 'BA-9200', '2025-11-01');        // +24 = 2027 Q4
+  biz('ACC-1200', 'OFF-B02', 'Singapore DR Link', 'BA-9200', '2026-01-15');            // +24 = 2028 Q1
+  biz('ACC-1310', 'OFF-B01', 'DC Primary Uplink', 'BA-9300', '2024-11-15');            // +36 = 2027 Q4
+  // Evergreen Estate Management — management office B2B services (separate from property-billed services)
+  S({ offeringId: 'OFF-B07', owner: { kind: 'business', id: 'ACC-2000' }, businessAccountId: 'ACC-2000', location: 'Sarjapur Road Management Office', billingAccountId: 'BA-9400', status: 'Active', activationDate: '2025-03-01', contractEnd: addMonths('2025-03-01', 12), mrc: off('OFF-B07').mrc }, 'TEN-EVG');
+  S({ offeringId: 'OFF-B04', owner: { kind: 'business', id: 'ACC-2000' }, businessAccountId: 'ACC-2000', location: 'Sarjapur Road Management Office – SIP Trunk', billingAccountId: 'BA-9400', status: 'Active', activationDate: '2025-03-01', contractEnd: addMonths('2025-03-01', 12), mrc: off('OFF-B04').mrc }, 'TEN-EVG');
+  // Palm Meadows Habitat Services — management office
+  S({ offeringId: 'OFF-B07', owner: { kind: 'business', id: 'ACC-3000' }, businessAccountId: 'ACC-3000', location: 'Kharadi Management Office', billingAccountId: 'BA-9500', status: 'Active', activationDate: '2025-06-01', contractEnd: addMonths('2025-06-01', 12), mrc: off('OFF-B07').mrc }, 'TEN-PMH');
+  S({ offeringId: 'OFF-B05', owner: { kind: 'business', id: 'ACC-3000' }, businessAccountId: 'ACC-3000', location: 'Kharadi Premises IoT', billingAccountId: 'BA-9500', status: 'Active', activationDate: '2025-07-01', contractEnd: addMonths('2025-07-01', 12), mrc: off('OFF-B05').mrc }, 'TEN-PMH');
 
   /* ---------------- MDU properties ---------------- */
   const props: { p: Property; towers: string[]; readyRule: (tower: string, floor: number) => boolean; occ: number; take: number }[] = [
@@ -391,8 +409,10 @@ export function buildSeed(): Database {
     }
     // Property-level shared services billed to the property, not residents.
     if (p.masterBillingId) {
-      S({ offeringId: 'OFF-P01', owner: { kind: 'business', id: p.tenantId === 'TEN-EVG' ? 'ACC-2000' : 'ACC-3000' }, propertyId: p.id, location: `${p.name} – Clubhouse & lobbies`, billingAccountId: p.masterBillingId, status: p.status === 'Live' ? 'Active' : 'Pending Installation', activationDate: p.status === 'Live' ? p.plannedActivation : undefined, contractEnd: addMonths(p.plannedActivation, 36), mrc: off('OFF-P01').mrc }, p.tenantId);
-      S({ offeringId: 'OFF-P02', owner: { kind: 'business', id: p.tenantId === 'TEN-EVG' ? 'ACC-2000' : 'ACC-3000' }, propertyId: p.id, location: `${p.name} – Perimeter CCTV`, billingAccountId: p.masterBillingId, status: 'Active', activationDate: p.plannedActivation, contractEnd: addMonths(p.plannedActivation, 24), mrc: off('OFF-P02').mrc }, p.tenantId);
+      const propAccId = p.tenantId === 'TEN-EVG' ? 'ACC-2000' : 'ACC-3000';
+      S({ offeringId: 'OFF-P01', owner: { kind: 'business', id: propAccId }, businessAccountId: propAccId, propertyId: p.id, location: `${p.name} – Clubhouse & lobbies`, billingAccountId: p.masterBillingId, status: p.status === 'Live' ? 'Active' : 'Pending Installation', activationDate: p.status === 'Live' ? p.plannedActivation : undefined, contractEnd: addMonths(p.plannedActivation, 36), mrc: off('OFF-P01').mrc }, p.tenantId);
+      S({ offeringId: 'OFF-P02', owner: { kind: 'business', id: propAccId }, businessAccountId: propAccId, propertyId: p.id, location: `${p.name} – Perimeter CCTV`, billingAccountId: p.masterBillingId, status: 'Active', activationDate: p.plannedActivation, contractEnd: addMonths(p.plannedActivation, 24), mrc: off('OFF-P02').mrc }, p.tenantId);
+      S({ offeringId: 'OFF-P03', owner: { kind: 'business', id: propAccId }, businessAccountId: propAccId, propertyId: p.id, location: `${p.name} – Lift Emergency Lines`, billingAccountId: p.masterBillingId, status: 'Active', activationDate: p.plannedActivation, contractEnd: addMonths(p.plannedActivation, 24), mrc: off('OFF-P03').mrc }, p.tenantId);
     }
   }
 
